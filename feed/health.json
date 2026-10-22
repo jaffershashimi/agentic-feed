@@ -1,6 +1,6 @@
 {
- "core_ok": false,
- "generated_at": "2026-10-22T01:22:49+00:00",
+ "core_ok": true,
+ "generated_at": "2026-10-22T01:26:20+00:00",
  "providers": [
   {
    "as_of": null,
@@ -57,13 +57,13 @@
    "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/SKEW_History.csv"
   },
   {
-   "as_of": null,
-   "error": "ValueError: SP500: unexpected columns ['<!doctype html>']",
-   "name": "SP500",
-   "ok": false,
-   "provider": "fred",
+   "as_of": "2026-10-20",
+   "error": null,
+   "name": "SPX",
+   "ok": true,
+   "provider": "cboe",
    "stale": false,
-   "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=SP500"
+   "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/SPX_History.csv"
   },
   {
    "as_of": null,
