@@ -1,0 +1,36 @@
+name: publish-feed
+on:
+  schedule:
+    # Every day so weekend and holiday reads stay fresh: 11:30 UTC (04:30 PDT / 03:30 PST).
+    - cron: "30 11 * * *"
+    # Weekday mid-morning refresh: 15:45 UTC (08:45 PDT / 07:45 PST).
+    - cron: "45 15 * * 1-5"
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: publish-feed
+  cancel-in-progress: false
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - run: python3 -m unittest discover -s tests -t .
+      - name: Build feed (health is written even when the feed is invalid)
+        id: build
+        run: python3 -m feed_pipeline.build --out feed
+        continue-on-error: true
+      - run: python3 scripts/privacy_check.py
+      - name: Commit changed feed files
+        run: |
+          git config user.name "agentic-feed-bot"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add feed/
+          if git diff --cached --quiet; then echo "No feed changes"; exit 0; fi
+          git commit -m "feed: $(date -u +%Y-%m-%dT%H:%MZ)"
+          git push
+      - name: Fail the run if the feed was not built
+        if: steps.build.outcome != 'success'
+        run: exit 1

@@ -1,0 +1,32 @@
+# How a consumer must read the feed
+
+The feed is optional input. A consumer must work exactly as before when the feed is missing, stale, invalid or unhealthy. It is never a single point of failure.
+
+## Read
+
+1. Fetch `https://raw.githubusercontent.com/jaffershashimi/agentic-feed/main/feed/desk-feed.json`. One request per run.
+2. If the fetch fails, the JSON does not parse, or `schema` is not `agentic-feed/1`, ignore the feed.
+
+## Use only if fresh
+
+Use the feed only when **all** of these hold:
+
+- `session` equals the last completed US equity session at read time. Before 16:00 ET (13:00 ET on early-close days), that is the previous trading day. Weekends and holidays roll back to the last trading day. So a Monday 05:52 PT read correctly uses Friday's session.
+- `data_health.core_ok` is `true`.
+- The encoded file is at most 6,000 bytes.
+
+This replaces a flat "24 hours old" rule, which would wrongly reject every Monday-morning and post-holiday read.
+
+## When the feed is used
+
+- Treat each number as context with its stated meaning. `null` means unavailable. Never substitute zero or a guess.
+- `regime` and `macro` are v0 heuristics. Do not use them as entry signals or to raise position size. Until `docs/SIGNAL_SCORECARD.md` promotes a signal with out-of-sample evidence, they are informational only.
+- Useful today:
+  - `vol.vix_over_rv20`, as an index-level richness check next to single-name IV/RV;
+  - `vol.exp_move_1d_pct` and `vol.exp_move_5d_pct`, for index reachability context;
+  - `events`, for calendar blackouts;
+  - `vol.term_3m_over_1m`: below 1 means inverted, which is a stress flag.
+
+## Backup channels
+
+A Google Drive file or a Notion page may mirror the feed later. Until a backup channel is proven by a real scheduled run, the fallback is the consumer's existing method.

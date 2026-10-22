@@ -1,0 +1,58 @@
+{
+ "calendar": "nyse-2025-2027-v1",
+ "data_health": {
+  "core_ok": true,
+  "failed": [],
+  "stale": []
+ },
+ "events": [
+  {
+   "date": "2026-10-28",
+   "time_pt": "11:00",
+   "type": "fomc_statement"
+  }
+ ],
+ "generated_at": "fixed",
+ "macro": {
+  "dgs10": 4.09,
+  "dgs2": 3.79,
+  "hy_oas": 2.94,
+  "missing": [],
+  "model": "v0 z-score composite (unvalidated)",
+  "nfci": -0.451,
+  "score": 0.07,
+  "t10y2y": 0.25,
+  "tilt": "neutral",
+  "usd_broad": 118.95
+ },
+ "note": "Market data only. v0 labels are heuristics, not validated signals. Null means unavailable.",
+ "regime": {
+  "label": "calm_uptrend",
+  "model": "v0-rules (unvalidated)",
+  "reasons": [
+   "vix<18",
+   "contango",
+   "index above 200d average"
+  ]
+ },
+ "schema": "agentic-feed/1",
+ "session": "2026-10-21",
+ "trend": {
+  "above_sma200": true,
+  "spx": 5969.69,
+  "spx_sma200": 5639.09
+ },
+ "vol": {
+  "exp_move_1d_pct": 0.97,
+  "exp_move_5d_pct": 2.17,
+  "skew": 136.84,
+  "spx_rv20": 4.52,
+  "term_3m_over_1m": 1.164,
+  "term_9d_over_1m": 0.918,
+  "vix": 15.42,
+  "vix3m": 17.95,
+  "vix9d": 14.16,
+  "vix_over_rv20": 3.411,
+  "vvix": 85.79
+ }
+}
