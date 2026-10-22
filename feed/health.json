@@ -1,0 +1,116 @@
+{
+ "core_ok": false,
+ "generated_at": "2026-10-22T01:22:49+00:00",
+ "providers": [
+  {
+   "as_of": null,
+   "error": "ValueError: BAMLH0A0HYM2: unexpected columns ['<!doctype html>']",
+   "name": "BAMLH0A0HYM2",
+   "ok": false,
+   "provider": "fred",
+   "stale": false,
+   "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=BAMLH0A0HYM2"
+  },
+  {
+   "as_of": null,
+   "error": "ValueError: DGS10: unexpected columns ['<!doctype html>']",
+   "name": "DGS10",
+   "ok": false,
+   "provider": "fred",
+   "stale": false,
+   "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10"
+  },
+  {
+   "as_of": null,
+   "error": "ValueError: DGS2: unexpected columns ['<!doctype html>']",
+   "name": "DGS2",
+   "ok": false,
+   "provider": "fred",
+   "stale": false,
+   "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS2"
+  },
+  {
+   "as_of": null,
+   "error": "ValueError: DTWEXBGS: unexpected columns ['<!doctype html>']",
+   "name": "DTWEXBGS",
+   "ok": false,
+   "provider": "fred",
+   "stale": false,
+   "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DTWEXBGS"
+  },
+  {
+   "as_of": null,
+   "error": "ValueError: NFCI: unexpected columns ['<!doctype html>']",
+   "name": "NFCI",
+   "ok": false,
+   "provider": "fred",
+   "stale": false,
+   "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=NFCI"
+  },
+  {
+   "as_of": "2026-10-20",
+   "error": null,
+   "name": "SKEW",
+   "ok": true,
+   "provider": "cboe",
+   "stale": false,
+   "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/SKEW_History.csv"
+  },
+  {
+   "as_of": null,
+   "error": "ValueError: SP500: unexpected columns ['<!doctype html>']",
+   "name": "SP500",
+   "ok": false,
+   "provider": "fred",
+   "stale": false,
+   "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=SP500"
+  },
+  {
+   "as_of": null,
+   "error": "ValueError: T10Y2Y: unexpected columns ['<!doctype html>']",
+   "name": "T10Y2Y",
+   "ok": false,
+   "provider": "fred",
+   "stale": false,
+   "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=T10Y2Y"
+  },
+  {
+   "as_of": "2026-10-21",
+   "error": null,
+   "name": "VIX",
+   "ok": true,
+   "provider": "cboe",
+   "stale": false,
+   "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv"
+  },
+  {
+   "as_of": "2026-10-21",
+   "error": null,
+   "name": "VIX3M",
+   "ok": true,
+   "provider": "cboe",
+   "stale": false,
+   "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX3M_History.csv"
+  },
+  {
+   "as_of": "2026-10-21",
+   "error": null,
+   "name": "VIX9D",
+   "ok": true,
+   "provider": "cboe",
+   "stale": false,
+   "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX9D_History.csv"
+  },
+  {
+   "as_of": "2026-10-21",
+   "error": null,
+   "name": "VVIX",
+   "ok": true,
+   "provider": "cboe",
+   "stale": false,
+   "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/VVIX_History.csv"
+  }
+ ],
+ "schema": "agentic-feed-health/1",
+ "session": "2026-10-21"
+}
