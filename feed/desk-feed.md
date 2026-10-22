@@ -1,5 +1,5 @@
 # Agentic feed for session 2026-10-21
-Generated 2026-10-22T15:57:37+00:00. Core data healthy: True. Stale: none. Failed: none.
+Generated 2026-10-22T19:30:43+00:00. Core data healthy: True. Stale: none. Failed: none.
 
 - Regime (v0, unvalidated): **calm_uptrend** (vix<18; contango; index above 200d average)
 - VIX 16.68, VIX9D 15.49, VIX3M 18.72, VVIX 94.55, SKEW 150.36
