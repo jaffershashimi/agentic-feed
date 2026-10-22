@@ -1,54 +1,54 @@
 {
  "core_ok": true,
- "generated_at": "2026-10-22T01:26:20+00:00",
+ "generated_at": "2026-10-22T15:57:37+00:00",
  "providers": [
   {
-   "as_of": null,
-   "error": "ValueError: BAMLH0A0HYM2: unexpected columns ['<!doctype html>']",
+   "as_of": "2026-10-21",
+   "error": null,
    "name": "BAMLH0A0HYM2",
-   "ok": false,
+   "ok": true,
    "provider": "fred",
    "stale": false,
    "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=BAMLH0A0HYM2"
   },
   {
-   "as_of": null,
-   "error": "ValueError: DGS10: unexpected columns ['<!doctype html>']",
+   "as_of": "2026-10-20",
+   "error": null,
    "name": "DGS10",
-   "ok": false,
+   "ok": true,
    "provider": "fred",
    "stale": false,
    "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10"
   },
   {
-   "as_of": null,
-   "error": "ValueError: DGS2: unexpected columns ['<!doctype html>']",
+   "as_of": "2026-10-20",
+   "error": null,
    "name": "DGS2",
-   "ok": false,
+   "ok": true,
    "provider": "fred",
    "stale": false,
    "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS2"
   },
   {
-   "as_of": null,
-   "error": "ValueError: DTWEXBGS: unexpected columns ['<!doctype html>']",
+   "as_of": "2026-10-16",
+   "error": null,
    "name": "DTWEXBGS",
-   "ok": false,
+   "ok": true,
    "provider": "fred",
    "stale": false,
    "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DTWEXBGS"
   },
   {
-   "as_of": null,
-   "error": "ValueError: NFCI: unexpected columns ['<!doctype html>']",
+   "as_of": "2026-10-16",
+   "error": null,
    "name": "NFCI",
-   "ok": false,
+   "ok": true,
    "provider": "fred",
    "stale": false,
    "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=NFCI"
   },
   {
-   "as_of": "2026-10-20",
+   "as_of": "2026-10-21",
    "error": null,
    "name": "SKEW",
    "ok": true,
@@ -57,7 +57,7 @@
    "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/SKEW_History.csv"
   },
   {
-   "as_of": "2026-10-20",
+   "as_of": "2026-10-21",
    "error": null,
    "name": "SPX",
    "ok": true,
@@ -66,10 +66,10 @@
    "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/SPX_History.csv"
   },
   {
-   "as_of": null,
-   "error": "ValueError: T10Y2Y: unexpected columns ['<!doctype html>']",
+   "as_of": "2026-10-21",
+   "error": null,
    "name": "T10Y2Y",
-   "ok": false,
+   "ok": true,
    "provider": "fred",
    "stale": false,
    "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=T10Y2Y"
