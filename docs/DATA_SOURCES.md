@@ -4,8 +4,8 @@ Status as of October 22, 2026. "Verify" means the terms, limits and history dept
 
 | Source | Series | Access | Used now | Status |
 |---|---|---|---|---|
-| Cboe index history CSVs (`cdn.cboe.com`) | VIX, VIX9D, VIX3M, VVIX, SKEW | Public CSV, no key | Yes | Verify terms and update time |
-| FRED `fredgraph.csv` (St. Louis Fed) | SP500, DGS2, DGS10, T10Y2Y, BAMLH0A0HYM2, NFCI, DTWEXBGS | Public CSV, no key | Yes | Verify: S&P 500 and ICE BofA series carry their own licensing notes on FRED |
+| Cboe index history CSVs (`cdn.cboe.com`) | VIX, VIX9D, VIX3M, VVIX, SKEW, SPX | Public CSV, no key | Yes; SPX is a core input | Worked from GitHub runners on Oct 22, 2026 (VIX family). Verify terms and update time |
+| FRED official API (St. Louis Fed) | DGS2, DGS10, T10Y2Y, BAMLH0A0HYM2, NFCI, DTWEXBGS | Free API key in the `FRED_API_KEY` Actions secret | Yes, when the secret is set | The keyless `fredgraph.csv` returned an HTML page from GitHub runners on Oct 22, 2026, so it is a fallback only. Verify: ICE BofA series carry their own licensing notes on FRED |
 | SEC EDGAR | Filings, Form 4, companyfacts | Free; 10 requests/s; User-Agent required | Not yet (P1-4) | Verify |
 | FINRA | Short interest, Reg SHO short volume | Free files | Not yet (P1-5) | Verify |
 | CFTC | Commitments of Traders | Free files | Not yet (P1-5) | Verify |

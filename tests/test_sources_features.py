@@ -34,6 +34,32 @@ class SourceParsingTest(unittest.TestCase):
         self.assertFalse(bad.ok)
 
 
+class FredApiTest(unittest.TestCase):
+    def test_api_json_is_parsed_and_missing_skipped(self):
+        body = '{"observations":[{"date":"2026-10-20","value":"4.10"},{"date":"2026-10-21","value":"."}]}'
+        result = sources.fetch_fred("DGS10", fetch=lambda url: body, api_key="SECRETKEY123")
+        self.assertTrue(result.ok)
+        self.assertEqual(result.series, [(date(2026, 10, 20), 4.10)])
+
+    def test_api_key_never_reaches_recorded_url_or_error(self):
+        seen = []
+
+        def failing(url):
+            seen.append(url)
+            raise urllib.error.URLError(f"refused {url}")
+
+        result = sources.fetch_fred("DGS10", fetch=failing, api_key="SECRETKEY123")
+        self.assertIn("api_key=SECRETKEY123", seen[0])
+        self.assertNotIn("SECRETKEY123", result.url)
+        self.assertNotIn("SECRETKEY123", result.error)
+        error_body = sources.fetch_fred("DGS10", fetch=lambda url: '{"error_message":"Bad Request"}', api_key="SECRETKEY123")
+        self.assertIn("Bad Request", error_body.error)
+
+    def test_html_instead_of_csv_is_a_failure(self):
+        result = sources.fetch_fred("DGS10", fetch=lambda url: "<!doctype html><html></html>", api_key="")
+        self.assertFalse(result.ok)
+
+
 class FeatureTest(unittest.TestCase):
     def test_realized_vol_matches_hand_calculation(self):
         closes = [(date(2026, 1, d), 100 * (1.01 if d % 2 else 0.99) ** 0 * (1.01 ** (d % 2))) for d in range(1, 23)]

@@ -32,7 +32,7 @@ def synthetic_results(end: date) -> dict[str, FetchResult]:
         "VIX": ("cboe", wave(days, 17.0, 3.0)), "VIX9D": ("cboe", wave(days, 16.0, 3.5)),
         "VIX3M": ("cboe", wave(days, 19.0, 2.0)), "VVIX": ("cboe", wave(days, 90.0, 8.0)),
         "SKEW": ("cboe", wave(days, 140.0, 6.0)),
-        "SP500": ("fred", trend(days, 5000.0, 0.0006)), "DGS2": ("fred", wave(days, 3.9, 0.2)),
+        "SPX": ("cboe", trend(days, 5000.0, 0.0006)), "DGS2": ("fred", wave(days, 3.9, 0.2)),
         "DGS10": ("fred", wave(days, 4.2, 0.2)), "T10Y2Y": ("fred", wave(days, 0.3, 0.1)),
         "BAMLH0A0HYM2": ("fred", wave(days, 3.1, 0.3)), "NFCI": ("fred", wave(weekly, -0.5, 0.05, 7)),
         "DTWEXBGS": ("fred", wave(days, 120.0, 2.0)),

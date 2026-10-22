@@ -14,9 +14,9 @@ from .sources import CBOE_SERIES, FRED_SERIES, FetchResult, fetch_cboe, fetch_fr
 
 SCHEMA = "agentic-feed/1"
 MAX_FEED_BYTES = 6000
-CORE = ("VIX", "VIX3M", "SP500")
+CORE = ("VIX", "VIX3M", "SPX")
 # How far behind the target session a series may be before it counts as stale.
-MAX_SESSIONS_BEHIND = {"cboe": 1, "SP500": 1, "DGS2": 2, "DGS10": 2, "T10Y2Y": 2, "BAMLH0A0HYM2": 2}
+MAX_SESSIONS_BEHIND = {"cboe": 1, "DGS2": 2, "DGS10": 2, "T10Y2Y": 2, "BAMLH0A0HYM2": 2}
 MAX_DAYS_BEHIND = {"NFCI": 10, "DTWEXBGS": 10}
 
 
@@ -50,9 +50,9 @@ def build_feed(results: dict[str, FetchResult], now: datetime) -> tuple[dict, di
     failed = sorted(n for n, r in results.items() if not r.ok)
     core_ok = all(n in results and results[n].ok and n not in stale for n in CORE)
 
-    vix, vix3m, spx = get("VIX"), get("VIX3M"), get("SP500")
-    rv20 = features.realized_vol(series.get("SP500", []), 20)
-    sma200 = features.sma(series.get("SP500", []), 200)
+    vix, vix3m, spx = get("VIX"), get("VIX3M"), get("SPX")
+    rv20 = features.realized_vol(series.get("SPX", []), 20)
+    sma200 = features.sma(series.get("SPX", []), 200)
     regime, reasons = features.regime_v0(vix, vix3m, spx, sma200)
     score, tilt, macro_missing = features.macro_score(series.get("BAMLH0A0HYM2", []), series.get("NFCI", []), series.get("DTWEXBGS", []))
 
