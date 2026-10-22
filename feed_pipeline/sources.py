@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import csv
 import io
+import json
+import os
 import time
 import urllib.error
 import urllib.request
@@ -18,9 +20,10 @@ USER_AGENT = "agentic-feed/0.1 (public research feed; contact via GitHub reposit
 
 CBOE_URL = "https://cdn.cboe.com/api/global/us_indices/daily_prices/{name}_History.csv"
 FRED_URL = "https://fred.stlouisfed.org/graph/fredgraph.csv?id={series}"
+FRED_API_URL = "https://api.stlouisfed.org/fred/series/observations?series_id={series}&file_type=json&observation_start={start}"
 
-CBOE_SERIES = ("VIX", "VIX9D", "VIX3M", "VVIX", "SKEW")
-FRED_SERIES = ("SP500", "DGS2", "DGS10", "T10Y2Y", "BAMLH0A0HYM2", "NFCI", "DTWEXBGS")
+CBOE_SERIES = ("VIX", "VIX9D", "VIX3M", "VVIX", "SKEW", "SPX")
+FRED_SERIES = ("DGS2", "DGS10", "T10Y2Y", "BAMLH0A0HYM2", "NFCI", "DTWEXBGS")
 
 Series = list[tuple[date, float]]
 
@@ -100,6 +103,15 @@ def parse_fred(text: str, series: str) -> Series:
     return _collect(rows, date_col, value_col)
 
 
+def parse_fred_api(text: str, series: str) -> Series:
+    """FRED API JSON: observations with ISO dates and string values; '.' means missing."""
+    payload = json.loads(text)
+    if "observations" not in payload:
+        raise ValueError(f"{series}: {payload.get('error_message', 'no observations in response')}"[:160])
+    rows = [{"date": o["date"], "value": o["value"]} for o in payload["observations"]]
+    return _collect(rows, "date", "value")
+
+
 def _collect(rows: list[dict], date_col: str, value_col: str) -> Series:
     out: dict[date, float] = {}
     for row in rows:
@@ -117,9 +129,24 @@ def fetch_cboe(name: str, fetch=fetch_text) -> FetchResult:
         return FetchResult("cboe", name, url, error=f"{type(error).__name__}: {error}"[:200])
 
 
-def fetch_fred(series: str, fetch=fetch_text) -> FetchResult:
+def fetch_fred(series: str, fetch=fetch_text, api_key: str | None = None, start: str = "2024-01-01") -> FetchResult:
+    """Official FRED API when FRED_API_KEY is set, otherwise the keyless CSV download.
+
+    The key is sent but never stored: the recorded URL omits it because health.json is public.
+    """
+    key = api_key if api_key is not None else os.environ.get("FRED_API_KEY", "")
+    if key:
+        public_url = FRED_API_URL.format(series=series, start=start)
+        try:
+            return FetchResult("fred", series, public_url, parse_fred_api(fetch(public_url + "&api_key=" + key), series))
+        except Exception as error:  # noqa: BLE001
+            return FetchResult("fred", series, public_url, error=_scrub(f"{type(error).__name__}: {error}", key))
     url = FRED_URL.format(series=series)
     try:
         return FetchResult("fred", series, url, parse_fred(fetch(url), series))
     except Exception as error:  # noqa: BLE001
         return FetchResult("fred", series, url, error=f"{type(error).__name__}: {error}"[:200])
+
+
+def _scrub(message: str, secret: str) -> str:
+    return message.replace(secret, "***")[:200] if secret else message[:200]
