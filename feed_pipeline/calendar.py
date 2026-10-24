@@ -30,6 +30,19 @@ FOMC_DECISIONS = {
     date(2026, 1, 28), date(2026, 3, 18), date(2026, 4, 29), date(2026, 6, 17),
     date(2026, 7, 29), date(2026, 9, 16), date(2026, 10, 28), date(2026, 12, 9),
 }
+# Scheduled 08:30 ET (05:30 PT) macro releases from the official BLS and BEA schedules, checked 2026-10-24. Dates not yet
+# published by the agencies are absent, never guessed; extend this table when the agencies publish them.
+MACRO_RELEASES = {
+    date(2026, 10, 29): ("pce",),  # BEA Personal Income and Outlays, September 2026
+    date(2026, 11, 6): ("nfp",),  # BLS Employment Situation, October 2026
+    date(2026, 11, 10): ("cpi",),  # BLS CPI, October 2026
+    date(2026, 11, 25): ("pce",),  # BEA, October 2026
+    date(2026, 12, 4): ("nfp",),  # BLS, November 2026
+    date(2026, 12, 10): ("cpi",),  # BLS, November 2026
+    date(2026, 12, 23): ("pce",),  # BEA, November 2026
+    date(2027, 1, 8): ("nfp",),  # BLS, December 2026
+}
+MACRO_RELEASES_CHECKED = date(2026, 10, 24)
 COVERED_YEARS = {2025, 2026, 2027}
 
 
@@ -79,6 +92,8 @@ def upcoming_events(start: date, days: int = 10) -> list[dict]:
             events.append({"date": day.isoformat(), "time_pt": "10:00", "type": "early_close"})
         if day in FOMC_DECISIONS:
             events.append({"date": day.isoformat(), "time_pt": "11:00", "type": "fomc_statement"})
+        for kind in MACRO_RELEASES.get(day, ()):
+            events.append({"date": day.isoformat(), "time_pt": "05:30", "type": kind})
         if day == monthly_opex(day.year, day.month):
             events.append({"date": day.isoformat(), "time_pt": None, "type": "monthly_opex"})
     return events
