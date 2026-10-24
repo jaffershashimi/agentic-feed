@@ -37,6 +37,9 @@ jobs:
         run: python3 -m feed_pipeline.risksim --out feed/risk-sim.json
       - name: Index volatility core (fail-soft; nulls when data is missing)
         run: python3 -m feed_pipeline.volcore --out feed/vol-core.json
+      - name: Offline research run on S&P 500 / VIX history (cached by run key; never places orders)
+        run: python3 -m feed_pipeline.research --out feed/research.json
+        continue-on-error: true
       - run: python3 scripts/privacy_check.py
       - name: Commit changed feed files
         run: |

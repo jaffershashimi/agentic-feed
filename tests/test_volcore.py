@@ -28,7 +28,7 @@ def gbm(n, sigma, seed):
 
 class ParseTest(unittest.TestCase):
     def test_bad_rows_are_skipped_not_filled(self):
-        text = "DATE,OPEN,HIGH,LOW,CLOSE\n10/20/2026,10,11,9,10.5\n10/21/2026,10,9,11,10\n10/22/2026,,11,9,10\n10/23/2026,10,11,9,0\n"
+        text = "DATE,OPEN,HIGH,LOW,CLOSE\n10/20/2026,10,11,9,10.5\n10/21/2026,10,9,11,10\n10/22/2026,,11,9,10\n10/23/2026,10,11,9,0\nbad,row,x,,\n10/26/2026,nan,inf,9,10\n10/27/2026,10,11\n"
         self.assertEqual(vc.parse_ohlc(text), [(date(2026, 10, 20), 10.0, 11.0, 9.0, 10.5)])
         with self.assertRaises(ValueError):
             vc.parse_ohlc("DATE,CLOSE\n10/20/2026,10\n")

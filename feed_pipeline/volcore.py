@@ -38,13 +38,17 @@ def parse_ohlc(text: str) -> list:
         raise ValueError(f"unexpected columns {list(cols)}")
     bars = []
     for row in rows:
-        values = [_parse_number(row[cols[k]]) for k in need[1:]]
-        if any(v is None or v <= 0 for v in values):
+        try:
+            values = [_parse_number(row[cols[k]] or "") for k in need[1:]]
+            day = _parse_date(row[cols["DATE"]] or "")
+        except (ValueError, TypeError):
+            continue  # a malformed row is skipped, never guessed
+        if any(v is None or not math.isfinite(v) or v <= 0 for v in values):
             continue  # missing or non-positive values are skipped, never filled
         o, h, l, c = values
         if not (l <= min(o, c) and max(o, c) <= h):
             continue  # an inconsistent bar is dropped rather than repaired
-        bars.append((_parse_date(row[cols["DATE"]]), o, h, l, c))
+        bars.append((day, o, h, l, c))
     bars.sort(key=lambda b: b[0])
     return bars
 
