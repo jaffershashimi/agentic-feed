@@ -6,6 +6,9 @@ on:
     # Weekday mid-morning refresh: 15:45 UTC (08:45 PDT / 07:45 PST).
     - cron: "45 15 * * 1-5"
   workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/publish.yml']
 permissions:
   contents: write
 concurrency:
@@ -17,6 +20,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          ref: main
       - run: python3 -m unittest discover -s tests -t .
       - name: Build feed (health is written even when the feed is invalid)
         id: build
