@@ -1,6 +1,6 @@
 {
  "core_ok": true,
- "generated_at": "2026-10-24T14:45:23+00:00",
+ "generated_at": "2026-10-24T19:29:24+00:00",
  "providers": [
   {
    "as_of": "2026-10-22",
@@ -9,7 +9,7 @@
    "ok": true,
    "provider": "fred",
    "stale": false,
-   "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=BAMLH0A0HYM2"
+   "url": "https://api.stlouisfed.org/fred/series/observations?series_id=BAMLH0A0HYM2&file_type=json&observation_start=2024-01-01"
   },
   {
    "as_of": "2026-10-22",
@@ -18,7 +18,7 @@
    "ok": true,
    "provider": "fred",
    "stale": false,
-   "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10"
+   "url": "https://api.stlouisfed.org/fred/series/observations?series_id=DGS10&file_type=json&observation_start=2024-01-01"
   },
   {
    "as_of": "2026-10-22",
@@ -27,7 +27,7 @@
    "ok": true,
    "provider": "fred",
    "stale": false,
-   "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS2"
+   "url": "https://api.stlouisfed.org/fred/series/observations?series_id=DGS2&file_type=json&observation_start=2024-01-01"
   },
   {
    "as_of": "2026-10-16",
@@ -36,7 +36,7 @@
    "ok": true,
    "provider": "fred",
    "stale": false,
-   "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DTWEXBGS"
+   "url": "https://api.stlouisfed.org/fred/series/observations?series_id=DTWEXBGS&file_type=json&observation_start=2024-01-01"
   },
   {
    "as_of": "2026-10-16",
@@ -45,7 +45,7 @@
    "ok": true,
    "provider": "fred",
    "stale": false,
-   "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=NFCI"
+   "url": "https://api.stlouisfed.org/fred/series/observations?series_id=NFCI&file_type=json&observation_start=2024-01-01"
   },
   {
    "as_of": "2026-10-23",
@@ -72,7 +72,7 @@
    "ok": true,
    "provider": "fred",
    "stale": false,
-   "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=T10Y2Y"
+   "url": "https://api.stlouisfed.org/fred/series/observations?series_id=T10Y2Y&file_type=json&observation_start=2024-01-01"
   },
   {
    "as_of": "2026-10-23",
