@@ -94,7 +94,8 @@ def collect(fetch, received_at, previous=None):
         records.append({'seriesId': sid, 'observationDate': latest[0], 'value': None if latest[1] == '.' else latest[1],
                         'seriesUpdatedAt': updates[sid], 'availableAt': received_at,
                         'historyHash': history_hash, 'changedSincePrevious': None if sid not in old else old[sid]['historyHash'] != history_hash,
-                        'metadata': metadata[sid]})
+                        'metadata': metadata[sid], 'sourceUrl': 'https://fred.stlouisfed.org/series/' + sid,
+                        'attribution': 'Federal Reserve Bank of Chicago, retrieved via FRED, Federal Reserve Bank of St. Louis'})
     return {'schema': 'release-context/1', 'releaseId': RELEASE, 'status': 'AVAILABLE', 'receivedAt': received_at,
             'complete': True, 'pages': page_no + 1, 'records': records, 'signalAuthority': False,
             'source': ENDPOINT, 'note': 'Latest revised history; not an as-released vintage or surprise. Available only at collection time.'}
