@@ -50,3 +50,18 @@ Every artifact carries:
 - bad data and duplicate dates;
 - the lock;
 - atomic fail-soft behaviour on corrupt input.
+
+## History collection
+
+After each publish run, `feed_pipeline/history.py` condenses research.json, risk-sim.json, vol-core.json and desk-feed.json into one record. It appends that record to `research-history.jsonl` on the `data` branch, so results accumulate outside main's history (issue P1-1, history-store part).
+- The record key is the session plus a hash of every input, so an unchanged run appends nothing.
+- Damaged lines are skipped, never rewritten.
+- The step runs the privacy check on the branch before pushing, and a failure never blocks the feed.
+
+The same step rewrites `RESEARCH_LOG.md` on that branch, a readable reference for people and other assistants:
+- the latest holdout table and the tail stress;
+- the risk-simulation breakevens;
+- the volatility context;
+- a 30-row trend table.
+
+Read it at https://raw.githubusercontent.com/jaffershashimi/agentic-feed/data/RESEARCH_LOG.md, or the raw records at `.../data/research-history.jsonl`. Everything there is market and model data only.
