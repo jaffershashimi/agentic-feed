@@ -58,6 +58,29 @@ jobs:
             sleep $((attempt * 5))
           done
           exit 1
+      - name: Append the run summary to the data branch (simulation history; market and model data only)
+        continue-on-error: true
+        run: |
+          set -e
+          if git fetch --quiet origin data; then
+            git worktree add -B data ../data FETCH_HEAD
+          else
+            git worktree add --detach ../data
+            git -C ../data checkout --orphan data
+            git -C ../data rm -rfq .
+          fi
+          python3 -m feed_pipeline.history --feed feed --dir ../data
+          python3 scripts/privacy_check.py ../data
+          cd ../data
+          git add -A
+          if git diff --cached --quiet; then echo "No history change"; exit 0; fi
+          git commit -m "history: $(date -u +%Y-%m-%dT%H:%MZ)"
+          for attempt in 1 2 3; do
+            if git push origin data; then exit 0; fi
+            git pull --rebase origin data
+            sleep $((attempt * 5))
+          done
+          exit 1
       - name: Fail the run if the feed was not built
         if: steps.build.outcome != 'success'
         run: exit 1

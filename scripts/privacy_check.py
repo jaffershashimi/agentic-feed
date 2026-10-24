@@ -42,8 +42,9 @@ def scan(root: Path = ROOT) -> list[str]:
     return problems
 
 
-def main() -> int:
-    problems = scan()
+def main(argv=None) -> int:
+    argv = sys.argv[1:] if argv is None else argv
+    problems = scan(Path(argv[0]).resolve()) if argv else scan()
     for problem in problems:
         print("PRIVACY:", problem)
     if problems:
