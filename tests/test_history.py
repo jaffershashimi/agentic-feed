@@ -21,7 +21,20 @@ FEED = {"schema": "agentic-feed/1", "session": "2026-01-09", "vol": {"vix": 18.0
         "regime": {"label": "neutral"}, "trend": {"above_sma200": True}}
 
 
+LAB = {"schemaVersion": "paper-lab/1", "availableAt": "2026-01-09", "synthetic": {"tradeDraws": 1000, "results": {"r/liquid/score_8": {"p_loss": 0.5, "x": 1}}},
+       "historical": {"results": {"r/liquid": {"holdout": {"n": 9, "win_rate": 0.3, "mean_net": -0.02, "mean_ci95": [-0.05, 0.01]}}}},
+       "contractsAffordable": {"score_8": 0, "score_9_10": 1, "atm_call_premium_usd": 1250.0}}
+
+
 class SummarizeTest(unittest.TestCase):
+    def test_paper_lab_section_is_recorded_and_keyed(self):
+        a, b = hi.summarize(RESEARCH, RISK, VOL, FEED), hi.summarize(RESEARCH, RISK, VOL, FEED, LAB)
+        self.assertNotIn("paperLab", a)
+        self.assertEqual(b["paperLab"]["holdout"]["r/liquid"]["mean_ci95"], [-0.05, 0.01])
+        self.assertNotIn("x", b["paperLab"]["synthetic"]["r/liquid/score_8"])
+        self.assertNotEqual(a["key"], b["key"])
+        self.assertIn("| r/liquid | 9 | 30.0% | -2.0% | -5.0% to 1.0% |", hi.render_log([b]))
+
     def test_fields_and_wrong_schemas_become_null(self):
         rec = hi.summarize(RESEARCH, RISK, VOL, FEED)
         self.assertEqual(rec["session"], "2026-01-09")

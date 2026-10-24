@@ -38,11 +38,12 @@ def _digest(obj) -> str | None:
     return hashlib.sha256(json.dumps(obj, sort_keys=True, separators=(",", ":")).encode()).hexdigest()[:16]
 
 
-def summarize(research, risk, vol, feed) -> dict:
+def summarize(research, risk, vol, feed, lab=None) -> dict:
     research = research if isinstance(research, dict) and research.get("schemaVersion") == "research-run/1" else None
     risk = risk if isinstance(risk, dict) and risk.get("schema") == "risk-sim/1" else None
     vol = vol if isinstance(vol, dict) and vol.get("schema") == "vol-core/1" else None
     feed = feed if isinstance(feed, dict) and feed.get("schema") == "agentic-feed/1" else None
+    lab = lab if isinstance(lab, dict) and lab.get("schemaVersion") == "paper-lab/1" else None
     rec = {"schema": SCHEMA, "session": (feed or vol or {}).get("session") or (research or {}).get("availableAt")}
     if research:
         rec["research"] = {
@@ -65,7 +66,15 @@ def summarize(research, risk, vol, feed) -> dict:
         rec["feed"] = {"vix": (feed.get("vol") or {}).get("vix"), "vix_over_rv20": (feed.get("vol") or {}).get("vix_over_rv20"),
                        "term_3m_over_1m": (feed.get("vol") or {}).get("term_3m_over_1m"),
                        "regime_v0": (feed.get("regime") or {}).get("label"), "above_sma200": (feed.get("trend") or {}).get("above_sma200")}
-    rec["key"] = _digest([rec.get("session"), (research or {}).get("runKey"), _digest(risk), _digest(vol), _digest(rec.get("feed"))])
+    if lab:
+        rec["paperLab"] = {"availableAt": lab.get("availableAt"), "tradeDraws": (lab.get("synthetic") or {}).get("tradeDraws"),
+                           "contractsAffordable": lab.get("contractsAffordable"),
+                           "holdout": {k: {f: (v.get("holdout") or {}).get(f) for f in ("n", "win_rate", "mean_net", "mean_ci95")}
+                                       for k, v in sorted(((lab.get("historical") or {}).get("results") or {}).items())},
+                           "synthetic": {k: {f: v.get(f) for f in ("terminal_equity", "p_loss", "p_drawdown_over_15pct")}
+                                         for k, v in sorted(((lab.get("synthetic") or {}).get("results") or {}).items())}}
+    rec["key"] = _digest([rec.get("session"), (research or {}).get("runKey"), _digest(risk), _digest(vol), _digest(rec.get("feed")),
+                          _digest(rec.get("paperLab"))])
     return rec
 
 
@@ -146,6 +155,18 @@ def render_log(rows: list) -> str:
                 f"VIX {_num(feed.get('vix'))}, 20-day realized {_num(rv)}, VIX/RV20 {_num(feed.get('vix_over_rv20'))}, "
                 f"VRP {_num(vol.get('vrp_vol_pts'))} vol points, VIX percentile (252d) {_num(vol.get('iv_pctile_252'), 1)}, "
                 f"term 3m/1m {_num(feed.get('term_3m_over_1m'), 3)}, v0 regime {feed.get('regime_v0')} (unvalidated).", ""]
+    lab = last.get("paperLab")
+    if lab:
+        c = lab.get("contractsAffordable") or {}
+        out += ["## Paper lab ($10,000 paper account, cost scenarios; modeled options)", "",
+                f"{lab.get('tradeDraws')} synthetic trade draws (bounded at one million). Whole ATM SPY contracts affordable: "
+                f"{c.get('score_8')} at 10% size, {c.get('score_9_10')} at 15% size (premium about ${c.get('atm_call_premium_usd')}).", "",
+                "| rule / scenario | holdout n | win rate | mean net | 95% interval |", "|---|---|---|---|---|"]
+        for k, h in lab.get("holdout", {}).items():
+            ci = h.get("mean_ci95")
+            ci_txt = f"{_pct(ci[0])} to {_pct(ci[1])}" if isinstance(ci, list) and len(ci) == 2 and None not in ci else "n/a"
+            out.append(f"| {k} | {h.get('n')} | {_pct(h.get('win_rate'))} | {_pct(h.get('mean_net'))} | {ci_txt} |")
+        out.append("")
     out += ["## Trend (one row per recorded run, newest last)", "",
             "| session | call above SMA200 mean | its win rate | put every session mean | breakeven (size 10%) | VIX | VRP |",
             "|---|---|---|---|---|---|---|"]
@@ -166,7 +187,7 @@ def _write_atomic(path: Path, text: str):
 
 def run(feed_dir: Path, out_dir: Path) -> bool:
     rec = summarize(_load(feed_dir / "research.json"), _load(feed_dir / "risk-sim.json"),
-                    _load(feed_dir / "vol-core.json"), _load(feed_dir / "desk-feed.json"))
+                    _load(feed_dir / "vol-core.json"), _load(feed_dir / "desk-feed.json"), _load(feed_dir / "paper-lab.json"))
     out_dir.mkdir(parents=True, exist_ok=True)
     added = append(out_dir / HISTORY, rec)
     _write_atomic(out_dir / LOG, render_log(read_history(out_dir / HISTORY)))
