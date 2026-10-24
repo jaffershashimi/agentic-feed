@@ -33,6 +33,8 @@ jobs:
         run: python3 -m feed_pipeline.releases
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+      - name: Rule-level risk simulation (percent rules, seeded; unchanged output means no commit)
+        run: python3 -m feed_pipeline.risksim --out feed/risk-sim.json
       - run: python3 scripts/privacy_check.py
       - name: Commit changed feed files
         run: |
