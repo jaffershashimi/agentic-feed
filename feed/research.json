@@ -1,0 +1,449 @@
+{
+ "artifactHash": "6a2c0c0ef123414426249c03178cce5f8ff9d7185253f122ae7e7750826c535e",
+ "attemptedModelCount": 5,
+ "attemptedStrategyHashes": [
+  "0896efd7c3a01a56da8d0af3896726c1b0395797c700e5d1ed84b5e8961ea7fd",
+  "5c72b25090142f62bcc6630c4d20482e05893033eaac49f8ef3d69120d546f95",
+  "5d67a8b9feca1c678b8d1f818d0d44d68c2b21e80c7bedb6453f68a8669aa12d",
+  "7536a8ade191fd0a90b5c816b96ac15dcae548bfe3d2a770631e0bada13b17a9",
+  "c571fcbf5fe4dcb7ee199091c1a78b8398ac2b5fd2dd4f70f4bbe1ffa4f27f22"
+ ],
+ "availableAt": "2026-10-23",
+ "codeCommit": "f0c14efcc6b828ce6901d41607a24f3931608ccc",
+ "codeHash": "814bbcdfa7780eb7fa910721589fb209b1bd51b3b6a80ace952aab7707ae8196",
+ "costModel": {
+  "fees_pct_of_debit": 0.01,
+  "spread_pct_of_mid": 0.04
+ },
+ "costModelHash": "fd33087f54964350d1a0cd0cb8cbce5c38228cb20ae4ce672dfe36958731be34",
+ "coverage": {
+  "call_above_sma200": {
+   "purged_cross_split": 10,
+   "unresolved_end_of_history": 10
+  },
+  "call_every_session": {
+   "purged_cross_split": 10,
+   "unresolved_end_of_history": 10
+  },
+  "cash": {
+   "purged_cross_split": 0,
+   "unresolved_end_of_history": 0
+  },
+  "put_every_session": {
+   "purged_cross_split": 2,
+   "unresolved_end_of_history": 10
+  },
+  "put_vix_above_25": {
+   "purged_cross_split": 0,
+   "unresolved_end_of_history": 0
+  }
+ },
+ "createdAt": "2026-10-24T21:00:58+00:00",
+ "dataClass": "HISTORICAL_UNDERLYING_MODELED_OPTIONS",
+ "datasetHash": "d8423682aed83da8f80e6faa5570738a45eff12392d11f207e57d54eed35cee2",
+ "datasetLicenseRef": "Cboe public index history CSVs (SPX, VIX); terms pending P0-3 verification (docs/DATA_SOURCES.md)",
+ "experimentId": "desk-structure-historical-v1",
+ "firstDate": "1990-01-02",
+ "limitations": [
+  "Option prices are Black-Scholes values from the VIX close, not historical option quotes: no real bid/ask, skew, fills or assignment.",
+  "Exits are checked at daily closes only; an intraday touch of a level is not seen, and a gap fills at the next close.",
+  "Outcomes start every session and overlap; the bootstrap uses moving blocks, and resampled outcomes are not new observations.",
+  "Index options proxy the structure; single-stock options carry different volatility, skew, spreads and event risk.",
+  "Rules are pre-registered and untuned; the holdout is reported once per code version and must not be used to tune.",
+  "Tail stress is synthetic and labeled separately; it is not a probability estimate."
+ ],
+ "liveExecution": false,
+ "metrics": {
+  "call_above_sma200": {
+   "holdout": {
+    "ci_excludes_zero": true,
+    "exits": {
+     "stop": 794,
+     "target": 296,
+     "time": 67
+    },
+    "max_drawdown_at_10pct_allocation": 0.6522,
+    "mean_ci95": [
+     -0.09956,
+     -0.03503
+    ],
+    "mean_net": -0.05991,
+    "n": 1157,
+    "non_overlapping_trades": 255,
+    "p01": -0.4118,
+    "p05": -0.3458,
+    "payoff_ratio": 1.58,
+    "resampled_outcomes": 83304,
+    "win_rate": 0.2904,
+    "worst": -0.4799
+   },
+   "train": {
+    "ci_excludes_zero": true,
+    "exits": {
+     "stop": 3014,
+     "target": 1331,
+     "time": 141
+    },
+    "max_drawdown_at_10pct_allocation": 0.9952,
+    "mean_ci95": [
+     -0.06562,
+     -0.03113
+    ],
+    "mean_net": -0.04651,
+    "n": 4486,
+    "non_overlapping_trades": 1050,
+    "p01": -0.4716,
+    "p05": -0.3818,
+    "payoff_ratio": 1.561,
+    "resampled_outcomes": 80748,
+    "win_rate": 0.3188,
+    "worst": -0.6512
+   },
+   "validation": {
+    "ci_excludes_zero": false,
+    "exits": {
+     "stop": 800,
+     "target": 373,
+     "time": 75
+    },
+    "max_drawdown_at_10pct_allocation": 0.6447,
+    "mean_ci95": [
+     -0.06025,
+     0.00732
+    ],
+    "mean_net": -0.03036,
+    "n": 1248,
+    "non_overlapping_trades": 260,
+    "p01": -0.4372,
+    "p05": -0.3513,
+    "payoff_ratio": 1.602,
+    "resampled_outcomes": 82368,
+    "win_rate": 0.3341,
+    "worst": -0.5546
+   }
+  },
+  "call_every_session": {
+   "holdout": {
+    "ci_excludes_zero": true,
+    "exits": {
+     "stop": 990,
+     "target": 391,
+     "time": 68
+    },
+    "max_drawdown_at_10pct_allocation": 0.7929,
+    "mean_ci95": [
+     -0.08245,
+     -0.0284
+    ],
+    "mean_net": -0.05553,
+    "n": 1449,
+    "non_overlapping_trades": 329,
+    "p01": -0.4447,
+    "p05": -0.3624,
+    "payoff_ratio": 1.595,
+    "resampled_outcomes": 82593,
+    "win_rate": 0.2981,
+    "worst": -0.5491
+   },
+   "train": {
+    "ci_excludes_zero": true,
+    "exits": {
+     "stop": 4296,
+     "target": 1822,
+     "time": 176
+    },
+    "max_drawdown_at_10pct_allocation": 0.9998,
+    "mean_ci95": [
+     -0.06208,
+     -0.03768
+    ],
+    "mean_net": -0.05286,
+    "n": 6294,
+    "non_overlapping_trades": 1524,
+    "p01": -0.4702,
+    "p05": -0.3841,
+    "payoff_ratio": 1.577,
+    "resampled_outcomes": 81822,
+    "win_rate": 0.3079,
+    "worst": -0.6512
+   },
+   "validation": {
+    "ci_excludes_zero": false,
+    "exits": {
+     "stop": 962,
+     "target": 465,
+     "time": 77
+    },
+    "max_drawdown_at_10pct_allocation": 0.7034,
+    "mean_ci95": [
+     -0.0604,
+     0.00406
+    ],
+    "mean_net": -0.0288,
+    "n": 1504,
+    "non_overlapping_trades": 321,
+    "p01": -0.4399,
+    "p05": -0.3704,
+    "payoff_ratio": 1.589,
+    "resampled_outcomes": 82720,
+    "win_rate": 0.3398,
+    "worst": -0.5546
+   }
+  },
+  "cash": {
+   "holdout": {
+    "mean_net": 0.0,
+    "n": 0,
+    "note": "cash: no position, return 0"
+   },
+   "train": {
+    "mean_net": 0.0,
+    "n": 0,
+    "note": "cash: no position, return 0"
+   },
+   "validation": {
+    "mean_net": 0.0,
+    "n": 0,
+    "note": "cash: no position, return 0"
+   }
+  },
+  "put_every_session": {
+   "holdout": {
+    "ci_excludes_zero": true,
+    "exits": {
+     "stop": 1059,
+     "target": 390,
+     "time": 0
+    },
+    "max_drawdown_at_10pct_allocation": 0.9873,
+    "mean_ci95": [
+     -0.09785,
+     -0.04932
+    ],
+    "mean_net": -0.07635,
+    "n": 1449,
+    "non_overlapping_trades": 468,
+    "p01": -0.5743,
+    "p05": -0.4597,
+    "payoff_ratio": 1.761,
+    "resampled_outcomes": 82593,
+    "win_rate": 0.2692,
+    "worst": -0.8679
+   },
+   "train": {
+    "ci_excludes_zero": true,
+    "exits": {
+     "stop": 4635,
+     "target": 1646,
+     "time": 15
+    },
+    "max_drawdown_at_10pct_allocation": 1.0,
+    "mean_ci95": [
+     -0.1026,
+     -0.07765
+    ],
+    "mean_net": -0.08656,
+    "n": 6296,
+    "non_overlapping_trades": 1963,
+    "p01": -0.5896,
+    "p05": -0.4755,
+    "payoff_ratio": 1.689,
+    "resampled_outcomes": 81848,
+    "win_rate": 0.2629,
+    "worst": -0.739
+   },
+   "validation": {
+    "ci_excludes_zero": true,
+    "exits": {
+     "stop": 1153,
+     "target": 355,
+     "time": 2
+    },
+    "max_drawdown_at_10pct_allocation": 0.9911,
+    "mean_ci95": [
+     -0.1249,
+     -0.06141
+    ],
+    "mean_net": -0.0976,
+    "n": 1510,
+    "non_overlapping_trades": 480,
+    "p01": -0.5689,
+    "p05": -0.484,
+    "payoff_ratio": 1.862,
+    "resampled_outcomes": 83050,
+    "win_rate": 0.2358,
+    "worst": -0.663
+   }
+  },
+  "put_vix_above_25": {
+   "holdout": {
+    "ci_excludes_zero": true,
+    "exits": {
+     "stop": 144,
+     "target": 49,
+     "time": 0
+    },
+    "max_drawdown_at_10pct_allocation": 0.7611,
+    "mean_ci95": [
+     -0.18784,
+     -0.06881
+    ],
+    "mean_net": -0.13358,
+    "n": 193,
+    "non_overlapping_trades": 80,
+    "p01": -0.8072,
+    "p05": -0.5156,
+    "payoff_ratio": 1.43,
+    "resampled_outcomes": 83183,
+    "win_rate": 0.2539,
+    "worst": -0.8679
+   },
+   "train": {
+    "ci_excludes_zero": true,
+    "exits": {
+     "stop": 852,
+     "target": 355,
+     "time": 2
+    },
+    "max_drawdown_at_10pct_allocation": 0.9693,
+    "mean_ci95": [
+     -0.10158,
+     -0.05135
+    ],
+    "mean_net": -0.08198,
+    "n": 1209,
+    "non_overlapping_trades": 448,
+    "p01": -0.6432,
+    "p05": -0.5337,
+    "payoff_ratio": 1.528,
+    "resampled_outcomes": 82212,
+    "win_rate": 0.2953,
+    "worst": -0.7346
+   },
+   "validation": {
+    "ci_excludes_zero": false,
+    "exits": {
+     "stop": 147,
+     "target": 51,
+     "time": 0
+    },
+    "max_drawdown_at_10pct_allocation": 0.5442,
+    "mean_ci95": [
+     -0.16282,
+     0.00673
+    ],
+    "mean_net": -0.08303,
+    "n": 198,
+    "non_overlapping_trades": 81,
+    "p01": -0.6477,
+    "p05": -0.5471,
+    "payoff_ratio": 1.906,
+    "resampled_outcomes": 83160,
+    "win_rate": 0.2576,
+    "worst": -0.663
+   }
+  }
+ },
+ "observationCounts": {
+  "call_above_sma200": {
+   "holdout": 1157,
+   "train": 4486,
+   "validation": 1248
+  },
+  "call_every_session": {
+   "holdout": 1449,
+   "train": 6294,
+   "validation": 1504
+  },
+  "cash": {
+   "holdout": 0,
+   "train": 0,
+   "validation": 0
+  },
+  "put_every_session": {
+   "holdout": 1449,
+   "train": 6296,
+   "validation": 1510
+  },
+  "put_vix_above_25": {
+   "holdout": 193,
+   "train": 1209,
+   "validation": 198
+  }
+ },
+ "policy": {
+  "dte_sessions": 21,
+  "hold_sessions": 10,
+  "iv_source": "VIX close / 100",
+  "moneyness": 1.0,
+  "stop": 0.15,
+  "target": 0.3
+ },
+ "policyHash": "64ee60e64b548a9bccc642c40eb8ee93885a9e697870a81ed510f536a16a9632",
+ "rows": 9267,
+ "runKey": "3340c71e8597d0541e1a79e8805bf89c9f849e73d536c1b0614ff5dacf2a8030",
+ "scenarioCount": 989601,
+ "schemaVersion": "research-run/1",
+ "seed": 20261024,
+ "sourceHashes": {
+  "SPX": "d6205ca64fb80b0b296813354f549aea79cf0e045bf34a656b86e06b451e520b",
+  "VIX": "f94378e505b286168d8dd466cc3a30bb12606ba34084d7ac53de953c75ba2ecd"
+ },
+ "splits": {
+  "holdout": [
+   "2021-01-01",
+   "2100-01-01"
+  ],
+  "train": [
+   "1990-01-01",
+   "2014-12-31"
+  ],
+  "validation": [
+   "2015-01-01",
+   "2020-12-31"
+  ]
+ },
+ "strategies": {
+  "call_above_sma200": {
+   "filter": "spx_above_sma200",
+   "kind": "call"
+  },
+  "call_every_session": {
+   "filter": "always",
+   "kind": "call"
+  },
+  "cash": {
+   "filter": "never",
+   "kind": null
+  },
+  "put_every_session": {
+   "filter": "always",
+   "kind": "put"
+  },
+  "put_vix_above_25": {
+   "filter": "vix_at_least_25",
+   "kind": "put"
+  }
+ },
+ "strategyHash": "e95b302d18971cb90fe70372719fe0dda7196d8d015f131c6c1b509e9c9dd2be",
+ "tailStress": {
+  "iv_multiplier": 1.6,
+  "label": "TAIL_STRESS_SYNTHETIC",
+  "overnight_gap": -0.07,
+  "results": {
+   "call_every_session": {
+    "mean_net": -0.6077,
+    "n": 1449,
+    "p05": -0.8141,
+    "worst": -0.8761
+   },
+   "put_every_session": {
+    "mean_net": 2.5987,
+    "n": 1449,
+    "p05": 1.4251,
+    "worst": -0.1777
+   }
+  }
+ },
+ "uniqueObservationCount": 26993
+}
