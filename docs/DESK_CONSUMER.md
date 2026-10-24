@@ -48,13 +48,31 @@ Weekly observations older than 14 days are flagged `STALE_OBSERVATION` but stay 
 
 ## Paper-desk ledger check
 
-`consumer/paper_ledger.py` (standard library, read-only, no network, no broker) checks a private paper-trading fills CSV:
-- **Per-arm statistics:** closed trades, win rate, average win and loss, expectancy, net and running drawdown.
-- **Rule breaches:**
-  - a protective stop recorded within 5 minutes of entry and no looser than 15% for options or 20% for equity;
-  - concurrent positions;
-  - entries per Pacific day;
-  - entries after the day's first loss;
-  - oversells.
+`consumer/paper_ledger.py` checks a private paper-trading fills CSV. It uses the standard library only, reads its input without writing, uses no network and talks to no broker.
 
-Consumers download it pinned by commit, check its sha256, and run it with `python3 -I` on their own file; the ledger itself never comes to this repository. The same tool lives in the private Agentic-Lab repository with its design notes.
+**Columns:** event_id, mode, arm, trade_id, kind, occurred_at, quote_time, symbol, instrument, side, qty, price, ref_price, multiplier, fees, policy_hash, decision_id.
+
+**Reported:** results per mode (PAPER or REPLAY, never mixed) and per arm. The statistics use accepted trades only, and are net after fees and in closing order.
+
+**Rejected trades** (malformed lifecycles, excluded from all statistics):
+- an inconsistent symbol, instrument, multiplier or policy hash;
+- events without an entry;
+- an exit before the entry;
+- an oversell;
+- a fill better than the quote it cites.
+
+**Unmeasured trades:** any trade with an unknown fee. A blank fee means unknown, never 0.
+
+**Rule breaches** (listed, but they don't remove a valid trade):
+- a stop missing from the 0 to 5 minutes after entry;
+- a stop looser than 15% for options or 20% for equity;
+- a stop widened later;
+- a stop recorded before the entry;
+- a stale quote;
+- concurrent positions;
+- entries per Pacific day;
+- entries after the first loss.
+
+The settings must be finite and in range.
+
+Alerts are notifications, never fills. Missing quotes between checks stay unresolved. Consumers download the checker pinned by commit, check its sha256, and run it with `python3 -I` on their own file; the ledger never comes to this repository. The same tool lives in the private Agentic-Lab repository.
