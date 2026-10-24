@@ -26,7 +26,7 @@ from pathlib import Path
 
 from . import optionmath
 from .sources import CBOE_URL, fetch_text, parse_cboe
-from .volcore import parse_ohlc
+from .volcore import parse_spx
 
 SCHEMA = "research-run/1"
 HERE = Path(__file__).resolve().parent
@@ -296,7 +296,7 @@ def main(argv=None):
         texts = {}
         for name in ("SPX", "VIX"):
             texts[name] = (Path(args.csv_dir) / f"{name}_History.csv").read_text() if args.csv_dir else fetch_text(CBOE_URL.format(name=name))
-        rows = align(parse_ohlc(texts["SPX"]), parse_cboe(texts["VIX"], "VIX"))
+        rows = align(parse_spx(texts["SPX"]), parse_cboe(texts["VIX"], "VIX"))
         previous = json.loads(out.read_text()) if out.exists() else None
         manifest, reused = build(rows, {k: sha(v.encode()) for k, v in texts.items()}, previous, datetime.now(timezone.utc))
         if not reused:

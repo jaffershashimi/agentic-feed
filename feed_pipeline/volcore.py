@@ -21,7 +21,7 @@ import sys
 from datetime import date, datetime, timezone
 
 from . import calendar
-from .sources import CBOE_URL, _parse_date, _parse_number, fetch_text
+from .sources import CBOE_URL, _parse_date, _parse_number, fetch_text, parse_cboe
 
 SCHEMA = "vol-core/1"
 YEAR = 252
@@ -53,6 +53,20 @@ def parse_ohlc(text: str) -> list:
     return bars
 
 
+def parse_spx(text: str) -> list:
+    """Cboe's live SPX_History.csv has only DATE and a close column; older/other files carry OHLC. Returns OHLC bars when
+    the file has them, else (date, open, high, low, close) bars with open/high/low set to None so the range-based
+    estimators report null instead of a fake zero range."""
+    try:
+        return parse_ohlc(text)
+    except ValueError:
+        return [(d, None, None, None, c) for d, c in parse_cboe(text, "SPX") if c > 0]
+
+
+def _has_ranges(bars: list) -> bool:
+    return bool(bars) and all(b[1] is not None for b in bars)
+
+
 def _ann(variance: float) -> float:
     return math.sqrt(max(variance, 0.0) * YEAR) * 100
 
@@ -66,20 +80,20 @@ def close_to_close(bars: list, n: int = 20) -> float | None:
 
 
 def parkinson(bars: list, n: int = 20) -> float | None:
-    if len(bars) < n:
+    if len(bars) < n or not _has_ranges(bars[-n:]):
         return None
     return _ann(sum(math.log(b[2] / b[3]) ** 2 for b in bars[-n:]) / (4 * math.log(2) * n))
 
 
 def garman_klass(bars: list, n: int = 20) -> float | None:
-    if len(bars) < n:
+    if len(bars) < n or not _has_ranges(bars[-n:]):
         return None
     v = sum(0.5 * math.log(b[2] / b[3]) ** 2 - (2 * math.log(2) - 1) * math.log(b[4] / b[1]) ** 2 for b in bars[-n:]) / n
     return _ann(v)
 
 
 def yang_zhang(bars: list, n: int = 20) -> float | None:
-    if len(bars) < n + 1:
+    if len(bars) < n + 1 or not _has_ranges(bars[-n:]):
         return None
     window, prev = bars[-n:], bars[-n - 1:-1]
     o = [math.log(b[1] / p[4]) for b, p in zip(window, prev)]  # overnight
@@ -140,13 +154,14 @@ def compute(spx: list, vix: list, vix9d: list, vix3m: list, skew: list, session:
     last = lambda rows: rows[-1][-1] if rows else None  # noqa: E731
     v, v9, v3 = last(vix), last(vix9d), last(vix3m)
     rv = {"close_to_close": close_to_close(spx), "parkinson": parkinson(spx), "garman_klass": garman_klass(spx), "yang_zhang": yang_zhang(spx)}
+    ranges_note = None if _has_ranges(spx[-21:]) else "source has closes only: range-based estimators unavailable"
     returns = [math.log(b[4] / a[4]) for a, b in zip(spx, spx[1:])][-1000:]
     rank, pctile = rank_and_percentile([x[1] for x in vix])
     cc = rv["close_to_close"]
     return {
         "schema": SCHEMA, "session": session.isoformat(), "underlying": "SPX", "implied": "VIX (30-day)",
         "as_of": {"spx": spx[-1][0].isoformat() if spx else None, "vix": vix[-1][0].isoformat() if vix else None},
-        "rv20_pct": {k: _r(x) for k, x in rv.items()},
+        "rv20_pct": {k: _r(x) for k, x in rv.items()}, "rv_note": ranges_note,
         "garch11": garch11(returns),
         "iv_rv_ratio": _r(v / cc, 3) if v and cc else None,
         "vrp_vol_pts": _r(v - cc) if v is not None and cc is not None else None,
@@ -175,7 +190,7 @@ def main(argv=None):
     for name in ("SPX", "VIX", "VIX9D", "VIX3M", "SKEW"):
         try:
             text = fetch_text(CBOE_URL.format(name=name))
-            inputs[name] = parse_ohlc(text) if name == "SPX" else _series(text, name)
+            inputs[name] = parse_spx(text) if name == "SPX" else _series(text, name)
         except Exception as exc:  # fail-soft: report and continue with nulls
             inputs[name], errors = [], errors + [f"{name}: {type(exc).__name__}"]
     out = compute(inputs["SPX"], inputs["VIX"], inputs["VIX9D"], inputs["VIX3M"], inputs["SKEW"], session)

@@ -30,8 +30,11 @@ def synthetic_rows(n=2900, seed=1, start=date(2012, 1, 2)):
     return rows
 
 
-def write_csvs(folder, rows, spx_extra="", vix_extra=""):
-    spx = "DATE,OPEN,HIGH,LOW,CLOSE\n" + "".join(f"{d:%m/%d/%Y},{s},{s*1.01},{s*0.99},{s}\n" for d, s, _ in rows) + spx_extra
+def write_csvs(folder, rows, spx_extra="", vix_extra="", closes_only=False):
+    if closes_only:  # the live Cboe SPX file format
+        spx = "DATE,SPX\n" + "".join(f"{d:%m/%d/%Y},{s}\n" for d, s, _ in rows) + spx_extra
+    else:
+        spx = "DATE,OPEN,HIGH,LOW,CLOSE\n" + "".join(f"{d:%m/%d/%Y},{s},{s*1.01},{s*0.99},{s}\n" for d, s, _ in rows) + spx_extra
     vix = "DATE,OPEN,HIGH,LOW,CLOSE\n" + "".join(f"{d:%m/%d/%Y},{v},{v},{v},{v}\n" for d, _, v in rows) + vix_extra
     Path(folder, "SPX_History.csv").write_text(spx)
     Path(folder, "VIX_History.csv").write_text(vix)
@@ -102,6 +105,13 @@ class RunTest(unittest.TestCase):
 
 
 class MainTest(unittest.TestCase):
+    def test_live_closes_only_spx_file_runs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            write_csvs(tmp, synthetic_rows(n=1500, start=date(2019, 1, 2)), closes_only=True)
+            out = Path(tmp, "research.json")
+            self.assertEqual(rs.main(["--out", str(out), "--csv-dir", tmp]), 0)
+            self.assertEqual(json.loads(out.read_text())["rows"], 1500)
+
     def test_end_to_end_write_reuse_lock_and_fail_soft(self):
         with tempfile.TemporaryDirectory() as tmp:
             write_csvs(tmp, synthetic_rows(n=1500, start=date(2019, 1, 2)), spx_extra="bad,row,,,\n", vix_extra="01/01/2030,nan,nan,nan,nan\n")
