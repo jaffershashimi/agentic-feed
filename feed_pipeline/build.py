@@ -71,7 +71,7 @@ def build_feed(results: dict[str, FetchResult], now: datetime) -> tuple[dict, di
         "trend": {"spx": _r(spx), "spx_sma200": _r(sma200), "above_sma200": None if spx is None or sma200 is None else spx > sma200},
         "macro": {
             "score": _r(score), "tilt": tilt, "model": "v0 z-score composite (unvalidated)", "missing": macro_missing,
-            "dgs2": _r(get("DGS2")), "dgs10": _r(get("DGS10")), "t10y2y": _r(get("T10Y2Y")), "hy_oas": _r(get("BAMLH0A0HYM2")),
+            "dgs2": _r(get("DGS2")), "dgs10": _r(get("DGS10")), "t10y2y": _r(get("T10Y2Y")),
             "nfci": _r(get("NFCI"), 3), "usd_broad": _r(get("DTWEXBGS")),
         },
         "events": calendar.upcoming_events(session, 10),
@@ -127,7 +127,7 @@ def render_markdown(feed: dict) -> str:
         f"- Term structure 3M/1M {fmt(v['term_3m_over_1m'])}; S&P 500 20d realized vol {fmt(v['spx_rv20'])}%; VIX/RV20 {fmt(v['vix_over_rv20'])}",
         f"- Implied 1-sigma move: 1 day {fmt(v['exp_move_1d_pct'])}%, 5 days {fmt(v['exp_move_5d_pct'])}%",
         f"- S&P 500 {fmt(t['spx'])} vs 200d average {fmt(t['spx_sma200'])}",
-        f"- Macro (v0): score {fmt(m['score'])}, tilt {m['tilt']}; 2y {fmt(m['dgs2'])}, 10y {fmt(m['dgs10'])}, HY OAS {fmt(m['hy_oas'])}, NFCI {fmt(m['nfci'])}",
+        f"- Macro (v0): score {fmt(m['score'])}, tilt {m['tilt']}; 2y {fmt(m['dgs2'])}, 10y {fmt(m['dgs10'])}, NFCI {fmt(m['nfci'])}",
         "",
         "Events: " + ("; ".join(f"{e['date']} {e['type']}" + (f" {e['time_pt']} PT" if e["time_pt"] else "") for e in feed["events"]) or "none"),
         "",
