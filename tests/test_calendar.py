@@ -40,6 +40,15 @@ class CalendarTest(unittest.TestCase):
         self.assertIn(("2026-11-26", "market_closed"), types)
         self.assertIn(("2026-11-27", "early_close"), types)
 
+    def test_macro_releases_are_sessions_at_0530_pt(self):
+        for day, kinds in calendar.MACRO_RELEASES.items():
+            self.assertTrue(calendar.is_session(day), day)
+            self.assertTrue(set(kinds) <= {"cpi", "nfp", "pce"})
+        events = calendar.upcoming_events(date(2026, 10, 26), 11)
+        self.assertIn({"date": "2026-10-29", "time_pt": "05:30", "type": "pce"}, events)
+        self.assertIn({"date": "2026-11-06", "time_pt": "05:30", "type": "nfp"}, events)
+        self.assertNotIn("cpi", {e["type"] for e in calendar.upcoming_events(date(2026, 10, 1), 10)})
+
     def test_uncovered_year_fails_loudly(self):
         with self.assertRaises(ValueError):
             calendar.is_session(date(2028, 1, 3))

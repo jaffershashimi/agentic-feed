@@ -10,6 +10,11 @@
    "date": "2026-10-28",
    "time_pt": "11:00",
    "type": "fomc_statement"
+  },
+  {
+   "date": "2026-10-29",
+   "time_pt": "05:30",
+   "type": "pce"
   }
  ],
  "generated_at": "fixed",
