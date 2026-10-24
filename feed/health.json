@@ -1,6 +1,6 @@
 {
  "core_ok": true,
- "generated_at": "2026-10-23T19:32:30+00:00",
+ "generated_at": "2026-10-24T14:45:23+00:00",
  "providers": [
   {
    "as_of": "2026-10-22",
@@ -12,7 +12,7 @@
    "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=BAMLH0A0HYM2"
   },
   {
-   "as_of": "2026-10-21",
+   "as_of": "2026-10-22",
    "error": null,
    "name": "DGS10",
    "ok": true,
@@ -21,7 +21,7 @@
    "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=DGS10"
   },
   {
-   "as_of": "2026-10-21",
+   "as_of": "2026-10-22",
    "error": null,
    "name": "DGS2",
    "ok": true,
@@ -48,7 +48,7 @@
    "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=NFCI"
   },
   {
-   "as_of": "2026-10-22",
+   "as_of": "2026-10-23",
    "error": null,
    "name": "SKEW",
    "ok": true,
@@ -57,7 +57,7 @@
    "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/SKEW_History.csv"
   },
   {
-   "as_of": "2026-10-22",
+   "as_of": "2026-10-23",
    "error": null,
    "name": "SPX",
    "ok": true,
@@ -66,7 +66,7 @@
    "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/SPX_History.csv"
   },
   {
-   "as_of": "2026-10-22",
+   "as_of": "2026-10-23",
    "error": null,
    "name": "T10Y2Y",
    "ok": true,
@@ -75,7 +75,7 @@
    "url": "https://fred.stlouisfed.org/graph/fredgraph.csv?id=T10Y2Y"
   },
   {
-   "as_of": "2026-10-22",
+   "as_of": "2026-10-23",
    "error": null,
    "name": "VIX",
    "ok": true,
@@ -84,7 +84,7 @@
    "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv"
   },
   {
-   "as_of": "2026-10-22",
+   "as_of": "2026-10-23",
    "error": null,
    "name": "VIX3M",
    "ok": true,
@@ -93,7 +93,7 @@
    "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX3M_History.csv"
   },
   {
-   "as_of": "2026-10-22",
+   "as_of": "2026-10-23",
    "error": null,
    "name": "VIX9D",
    "ok": true,
@@ -102,7 +102,7 @@
    "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX9D_History.csv"
   },
   {
-   "as_of": "2026-10-22",
+   "as_of": "2026-10-23",
    "error": null,
    "name": "VVIX",
    "ok": true,
@@ -112,5 +112,5 @@
   }
  ],
  "schema": "agentic-feed-health/1",
- "session": "2026-10-22"
+ "session": "2026-10-23"
 }
