@@ -1,0 +1,641 @@
+{
+ "account_usd": 10000.0,
+ "availableAt": "2026-10-23",
+ "contractsAffordable": {
+  "as_of": "2026-10-23",
+  "atm_call_premium_usd": 1707.44,
+  "score_8": 0,
+  "score_9_10": 0
+ },
+ "costNotes": {
+  "fee_per_contract_usd": 0.68,
+  "option_quote_delay_minutes": 15,
+  "spy_per_spx": 0.1
+ },
+ "createdAt": "2026-10-24T22:00:33+00:00",
+ "historical": {
+  "dataClass": "HISTORICAL_UNDERLYING_MODELED_OPTIONS",
+  "missingData": {
+   "aligned_rows": 9267,
+   "gaps_over_4_days": 3,
+   "longest_gap_days": 7
+  },
+  "results": {
+   "call_above_sma200/liquid": {
+    "holdout": {
+     "exits": {
+      "stop": 751,
+      "target": 338,
+      "time": 68
+     },
+     "mean_ci95": [
+      -0.0545,
+      0.01338
+     ],
+     "mean_net": -0.02468,
+     "n": 1157,
+     "win_rate": 0.3284
+    },
+    "train": {
+     "exits": {
+      "stop": 2856,
+      "target": 1489,
+      "time": 141
+     },
+     "mean_ci95": [
+      -0.02991,
+      0.00421
+     ],
+     "mean_net": -0.01239,
+     "n": 4486,
+     "win_rate": 0.352
+    },
+    "validation": {
+     "exits": {
+      "stop": 755,
+      "target": 411,
+      "time": 83
+     },
+     "mean_ci95": [
+      -0.03919,
+      0.03215
+     ],
+     "mean_net": -0.00237,
+     "n": 1249,
+     "win_rate": 0.3675
+    }
+   },
+   "call_above_sma200/stressed": {
+    "holdout": {
+     "exits": {
+      "stop": 898,
+      "target": 206,
+      "time": 53
+     },
+     "mean_ci95": [
+      -0.13802,
+      -0.08448
+     ],
+     "mean_net": -0.10809,
+     "n": 1157,
+     "win_rate": 0.2074
+    },
+    "train": {
+     "exits": {
+      "stop": 3539,
+      "target": 832,
+      "time": 117
+     },
+     "mean_ci95": [
+      -0.13147,
+      -0.10672
+     ],
+     "mean_net": -0.11857,
+     "n": 4488,
+     "win_rate": 0.2043
+    },
+    "validation": {
+     "exits": {
+      "stop": 957,
+      "target": 226,
+      "time": 69
+     },
+     "mean_ci95": [
+      -0.12336,
+      -0.0677
+     ],
+     "mean_net": -0.0973,
+     "n": 1252,
+     "win_rate": 0.2188
+    }
+   },
+   "call_above_sma200/typical": {
+    "holdout": {
+     "exits": {
+      "stop": 762,
+      "target": 321,
+      "time": 74
+     },
+     "mean_ci95": [
+      -0.06715,
+      -0.00085
+     ],
+     "mean_net": -0.03395,
+     "n": 1157,
+     "win_rate": 0.3207
+    },
+    "train": {
+     "exits": {
+      "stop": 2999,
+      "target": 1344,
+      "time": 141
+     },
+     "mean_ci95": [
+      -0.05179,
+      -0.02024
+     ],
+     "mean_net": -0.03424,
+     "n": 4484,
+     "win_rate": 0.3223
+    },
+    "validation": {
+     "exits": {
+      "stop": 788,
+      "target": 383,
+      "time": 75
+     },
+     "mean_ci95": [
+      -0.04802,
+      0.02028
+     ],
+     "mean_net": -0.01413,
+     "n": 1246,
+     "win_rate": 0.3435
+    }
+   },
+   "call_above_sma200/wide": {
+    "holdout": {
+     "exits": {
+      "stop": 805,
+      "target": 279,
+      "time": 73
+     },
+     "mean_ci95": [
+      -0.09115,
+      -0.03425
+     ],
+     "mean_net": -0.06233,
+     "n": 1157,
+     "win_rate": 0.2809
+    },
+    "train": {
+     "exits": {
+      "stop": 3198,
+      "target": 1155,
+      "time": 132
+     },
+     "mean_ci95": [
+      -0.08186,
+      -0.05148
+     ],
+     "mean_net": -0.0652,
+     "n": 4485,
+     "win_rate": 0.2789
+    },
+    "validation": {
+     "exits": {
+      "stop": 840,
+      "target": 331,
+      "time": 77
+     },
+     "mean_ci95": [
+      -0.07041,
+      0.00096
+     ],
+     "mean_net": -0.0417,
+     "n": 1248,
+     "win_rate": 0.3037
+    }
+   },
+   "call_every_session/liquid": {
+    "holdout": {
+     "exits": {
+      "stop": 935,
+      "target": 447,
+      "time": 67
+     },
+     "mean_ci95": [
+      -0.04531,
+      0.01426
+     ],
+     "mean_net": -0.01871,
+     "n": 1449,
+     "win_rate": 0.3375
+    },
+    "train": {
+     "exits": {
+      "stop": 4144,
+      "target": 1986,
+      "time": 162
+     },
+     "mean_ci95": [
+      -0.04007,
+      -0.0102
+     ],
+     "mean_net": -0.02545,
+     "n": 6292,
+     "win_rate": 0.3331
+    },
+    "validation": {
+     "exits": {
+      "stop": 904,
+      "target": 522,
+      "time": 78
+     },
+     "mean_ci95": [
+      -0.01961,
+      0.04093
+     ],
+     "mean_net": 0.00826,
+     "n": 1504,
+     "win_rate": 0.3737
+    }
+   },
+   "call_every_session/stressed": {
+    "holdout": {
+     "exits": {
+      "stop": 1116,
+      "target": 275,
+      "time": 58
+     },
+     "mean_ci95": [
+      -0.12842,
+      -0.08406
+     ],
+     "mean_net": -0.10763,
+     "n": 1449,
+     "win_rate": 0.2174
+    },
+    "train": {
+     "exits": {
+      "stop": 4985,
+      "target": 1146,
+      "time": 164
+     },
+     "mean_ci95": [
+      -0.13544,
+      -0.11104
+     ],
+     "mean_net": -0.12335,
+     "n": 6295,
+     "win_rate": 0.1992
+    },
+    "validation": {
+     "exits": {
+      "stop": 1136,
+      "target": 294,
+      "time": 75
+     },
+     "mean_ci95": [
+      -0.11684,
+      -0.05918
+     ],
+     "mean_net": -0.09352,
+     "n": 1505,
+     "win_rate": 0.2306
+    }
+   },
+   "call_every_session/typical": {
+    "holdout": {
+     "exits": {
+      "stop": 951,
+      "target": 421,
+      "time": 77
+     },
+     "mean_ci95": [
+      -0.05687,
+      0.00116
+     ],
+     "mean_net": -0.02913,
+     "n": 1449,
+     "win_rate": 0.3237
+    },
+    "train": {
+     "exits": {
+      "stop": 4267,
+      "target": 1881,
+      "time": 145
+     },
+     "mean_ci95": [
+      -0.052,
+      -0.02424
+     ],
+     "mean_net": -0.03814,
+     "n": 6293,
+     "win_rate": 0.3151
+    },
+    "validation": {
+     "exits": {
+      "stop": 950,
+      "target": 473,
+      "time": 80
+     },
+     "mean_ci95": [
+      -0.04104,
+      0.01607
+     ],
+     "mean_net": -0.01529,
+     "n": 1503,
+     "win_rate": 0.3453
+    }
+   },
+   "call_every_session/wide": {
+    "holdout": {
+     "exits": {
+      "stop": 1019,
+      "target": 364,
+      "time": 66
+     },
+     "mean_ci95": [
+      -0.08594,
+      -0.03078
+     ],
+     "mean_net": -0.05928,
+     "n": 1449,
+     "win_rate": 0.283
+    },
+    "train": {
+     "exits": {
+      "stop": 4554,
+      "target": 1590,
+      "time": 152
+     },
+     "mean_ci95": [
+      -0.08685,
+      -0.05626
+     ],
+     "mean_net": -0.07134,
+     "n": 6296,
+     "win_rate": 0.2699
+    },
+    "validation": {
+     "exits": {
+      "stop": 1006,
+      "target": 417,
+      "time": 81
+     },
+     "mean_ci95": [
+      -0.06775,
+      -0.00836
+     ],
+     "mean_net": -0.03959,
+     "n": 1504,
+     "win_rate": 0.3092
+    }
+   }
+  },
+  "splits": {
+   "holdout": [
+    "2021-01-01",
+    "2100-01-01"
+   ],
+   "train": [
+    "1990-01-01",
+    "2014-12-31"
+   ],
+   "validation": [
+    "2015-01-01",
+    "2020-12-31"
+   ]
+  }
+ },
+ "limitations": [
+  "Historical outcomes use modeled option prices from the VIX close, not option quotes; exits are checked at daily closes.",
+  "Synthetic paths resample historical holdout outcomes; they are not new observations or a forecast.",
+  "Sizes are proposals awaiting the owner's paper-policy decision; fractional contracts are allowed in the paths, but contractsAffordable shows how many whole contracts each size buys.",
+  "The delayed-quote error is symmetric noise around the true price; real delayed fills may be worse in fast markets."
+ ],
+ "liveExecution": false,
+ "paperFills": {
+  "dataClass": "PAPER",
+  "status": "private ledger only; scored by consumer/paper_ledger.py, never published here"
+ },
+ "policy": {
+  "dte_sessions": 21,
+  "hold_sessions": 10,
+  "iv_source": "VIX close / 100",
+  "moneyness": 1.0,
+  "stop": 0.15,
+  "target": 0.3
+ },
+ "policyHash": "64ee60e64b548a9bccc642c40eb8ee93885a9e697870a81ed510f536a16a9632",
+ "scenarios": {
+  "liquid": {
+   "missing_check_prob": 0.02,
+   "slippage_pct": 0.0025,
+   "spread_pct": 0.007
+  },
+  "stressed": {
+   "missing_check_prob": 0.1,
+   "slippage_pct": 0.02,
+   "spread_pct": 0.08
+  },
+  "typical": {
+   "missing_check_prob": 0.05,
+   "slippage_pct": 0.005,
+   "spread_pct": 0.02
+  },
+  "wide": {
+   "missing_check_prob": 0.05,
+   "slippage_pct": 0.01,
+   "spread_pct": 0.04
+  }
+ },
+ "schemaVersion": "paper-lab/1",
+ "seed": 20261025,
+ "sizes_proposed": {
+  "score_8": 0.1,
+  "score_9_10": 0.15
+ },
+ "synthetic": {
+  "dataClass": "SYNTHETIC_BLOCK_BOOTSTRAP_OF_HOLDOUT",
+  "maxScenarios": 1000000,
+  "pathsPerConfig": 625,
+  "results": {
+   "call_above_sma200/liquid/score_8": {
+    "max_drawdown_p50": 0.2912,
+    "p_drawdown_over_15pct": 0.9552,
+    "p_loss": 0.504,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 5875.97,
+     "p50": 9969.18,
+     "p95": 15609.45
+    },
+    "trade_draws": 62500
+   },
+   "call_above_sma200/liquid/score_9_10": {
+    "max_drawdown_p50": 0.4114,
+    "p_drawdown_over_15pct": 0.9968,
+    "p_loss": 0.552,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 4320.68,
+     "p50": 9532.97,
+     "p95": 21732.0
+    },
+    "trade_draws": 62500
+   },
+   "call_above_sma200/stressed/score_8": {
+    "max_drawdown_p50": 0.6724,
+    "p_drawdown_over_15pct": 1.0,
+    "p_loss": 1.0,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 2250.3,
+     "p50": 3440.21,
+     "p95": 5317.82
+    },
+    "trade_draws": 62500
+   },
+   "call_above_sma200/stressed/score_9_10": {
+    "max_drawdown_p50": 0.8251,
+    "p_drawdown_over_15pct": 1.0,
+    "p_loss": 1.0,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 1030.47,
+     "p50": 1865.95,
+     "p95": 3532.33
+    },
+    "trade_draws": 62500
+   },
+   "call_above_sma200/typical/score_8": {
+    "max_drawdown_p50": 0.3602,
+    "p_drawdown_over_15pct": 0.9952,
+    "p_loss": 0.8032,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 4614.58,
+     "p50": 7848.62,
+     "p95": 12771.63
+    },
+    "trade_draws": 62500
+   },
+   "call_above_sma200/typical/score_9_10": {
+    "max_drawdown_p50": 0.491,
+    "p_drawdown_over_15pct": 0.9984,
+    "p_loss": 0.816,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 3118.89,
+     "p50": 6808.7,
+     "p95": 15303.94
+    },
+    "trade_draws": 62500
+   },
+   "call_above_sma200/wide/score_8": {
+    "max_drawdown_p50": 0.3979,
+    "p_drawdown_over_15pct": 0.9904,
+    "p_loss": 0.8336,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 4278.61,
+     "p50": 7276.87,
+     "p95": 12361.88
+    },
+    "trade_draws": 62500
+   },
+   "call_above_sma200/wide/score_9_10": {
+    "max_drawdown_p50": 0.5454,
+    "p_drawdown_over_15pct": 1.0,
+    "p_loss": 0.8672,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 2647.31,
+     "p50": 6015.34,
+     "p95": 12948.29
+    },
+    "trade_draws": 62500
+   },
+   "call_every_session/liquid/score_8": {
+    "max_drawdown_p50": 0.3323,
+    "p_drawdown_over_15pct": 0.9824,
+    "p_loss": 0.7232,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 5160.12,
+     "p50": 8325.81,
+     "p95": 13803.8
+    },
+    "trade_draws": 62500
+   },
+   "call_every_session/liquid/score_9_10": {
+    "max_drawdown_p50": 0.4686,
+    "p_drawdown_over_15pct": 1.0,
+    "p_loss": 0.7472,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 3673.75,
+     "p50": 7448.89,
+     "p95": 15749.87
+    },
+    "trade_draws": 62500
+   },
+   "call_every_session/stressed/score_8": {
+    "max_drawdown_p50": 0.6173,
+    "p_drawdown_over_15pct": 1.0,
+    "p_loss": 1.0,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 2563.26,
+     "p50": 4052.28,
+     "p95": 6645.21
+    },
+    "trade_draws": 62500
+   },
+   "call_every_session/stressed/score_9_10": {
+    "max_drawdown_p50": 0.7781,
+    "p_drawdown_over_15pct": 1.0,
+    "p_loss": 1.0,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 1214.61,
+     "p50": 2404.58,
+     "p95": 4713.08
+    },
+    "trade_draws": 62500
+   },
+   "call_every_session/typical/score_8": {
+    "max_drawdown_p50": 0.3131,
+    "p_drawdown_over_15pct": 0.9712,
+    "p_loss": 0.6208,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 5434.84,
+     "p50": 9132.74,
+     "p95": 15269.08
+    },
+    "trade_draws": 62500
+   },
+   "call_every_session/typical/score_9_10": {
+    "max_drawdown_p50": 0.4313,
+    "p_drawdown_over_15pct": 1.0,
+    "p_loss": 0.6272,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 4156.57,
+     "p50": 8610.52,
+     "p95": 19321.83
+    },
+    "trade_draws": 62500
+   },
+   "call_every_session/wide/score_8": {
+    "max_drawdown_p50": 0.5276,
+    "p_drawdown_over_15pct": 1.0,
+    "p_loss": 0.9808,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 3224.15,
+     "p50": 5273.77,
+     "p95": 8822.68
+    },
+    "trade_draws": 62500
+   },
+   "call_every_session/wide/score_9_10": {
+    "max_drawdown_p50": 0.6886,
+    "p_drawdown_over_15pct": 1.0,
+    "p_loss": 0.9872,
+    "paths": 625,
+    "terminal_equity": {
+     "p05": 1726.31,
+     "p50": 3591.67,
+     "p95": 7406.74
+    },
+    "trade_draws": 62500
+   }
+  },
+  "tradeDraws": 1000000,
+  "tradesPerPath": 100
+ }
+}
