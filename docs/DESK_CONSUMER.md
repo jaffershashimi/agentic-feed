@@ -45,3 +45,16 @@ The snapshot is `USED` only if all of these hold:
 Weekly observations older than 14 days are flagged `STALE_OBSERVATION` but stay context. The output carries `snapshotSha256` so a private consumer can store the exact snapshot it saw.
 
 `surprise` is always `UNKNOWN`: this feed has no consensus source. The values are financial-conditions background only, never an entry reason, a size change or a rule override, and a weekly observation date is not a live quote.
+
+## Paper-desk ledger check
+
+`consumer/paper_ledger.py` (standard library, read-only, no network, no broker) checks a private paper-trading fills CSV:
+- **Per-arm statistics:** closed trades, win rate, average win and loss, expectancy, net and running drawdown.
+- **Rule breaches:**
+  - a protective stop recorded within 5 minutes of entry and no looser than 15% for options or 20% for equity;
+  - concurrent positions;
+  - entries per Pacific day;
+  - entries after the day's first loss;
+  - oversells.
+
+Consumers download it pinned by commit, check its sha256, and run it with `python3 -I` on their own file; the ledger itself never comes to this repository. The same tool lives in the private Agentic-Lab repository with its design notes.
