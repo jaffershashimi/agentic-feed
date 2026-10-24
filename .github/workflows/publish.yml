@@ -40,6 +40,9 @@ jobs:
       - name: Offline research run on S&P 500 / VIX history (cached by run key; never places orders)
         run: python3 -m feed_pipeline.research --out feed/research.json
         continue-on-error: true
+      - name: Paper lab for the $10,000 paper account (bounded at one million synthetic trade draws; never places orders)
+        run: python3 -m feed_pipeline.paperlab --out feed/paper-lab.json
+        continue-on-error: true
       - run: python3 scripts/privacy_check.py
       - name: Commit changed feed files
         run: |
