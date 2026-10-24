@@ -9,6 +9,7 @@ entry reason and never a surprise (no consensus source exists here, so surprise 
 import argparse
 import hashlib
 import json
+import math
 import sys
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -32,12 +33,23 @@ def instant(text):
 
 def check(raw, decision_at, max_age_hours=36.0):
     """raw: the file's bytes. Returns the decision record (always a dict)."""
-    decided = instant(decision_at)
-    out = {"schema": "release-context-check/1", "decisionAt": decided.astimezone(timezone.utc).isoformat().replace("+00:00", "Z"),
+    out = {"schema": "release-context-check/1", "decisionAt": None,
            "status": "IGNORED", "reasons": [], "snapshotSha256": hashlib.sha256(raw).hexdigest() if raw else None,
            "receivedAt": None, "collectionAgeHours": None, "maxAgeHours": max_age_hours, "series": [], "surprise": "UNKNOWN",
            "authority": "context only; never an entry reason, size change or rule override"}
     reasons = out["reasons"]
+    # The fail-safe boundary covers the caller's own inputs too: a bad decision time or threshold is a reason, never a crash
+    # and never a silently disabled check (NaN compares false with everything, so it would accept any age).
+    try:
+        decided = instant(decision_at)
+        out["decisionAt"] = decided.astimezone(timezone.utc).isoformat().replace("+00:00", "Z")
+    except (TypeError, ValueError) as exc:
+        reasons.append("invalid decision time: %s" % exc)
+    if isinstance(max_age_hours, bool) or not isinstance(max_age_hours, (int, float)) or not math.isfinite(max_age_hours) or max_age_hours <= 0:
+        reasons.append("invalid max age %r: must be a finite number above 0" % (max_age_hours,))
+    if reasons:
+        out["maxAgeHours"] = None
+        return out
     if not raw:
         reasons.append("missing")
         return out
@@ -134,7 +146,7 @@ def main(argv=None):
         raw = open(args.file, "rb").read() if args.file else fetch()
     except Exception as exc:  # outage or unreadable file: report, never fail the caller
         record = check(b"", decision, args.max_age_hours)
-        record["reasons"] = ["unreachable: %s" % type(exc).__name__]
+        record["reasons"] = [r for r in record["reasons"] if r != "missing"] + ["unreachable: %s" % type(exc).__name__]
     else:
         record = check(raw, decision, args.max_age_hours)
     print(json.dumps(record, sort_keys=True, separators=(",", ":")))

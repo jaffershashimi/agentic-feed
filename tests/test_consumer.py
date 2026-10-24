@@ -95,6 +95,25 @@ class ConsumerTest(unittest.TestCase):
         r = json.loads(out.getvalue())
         self.assertEqual((r["status"], r["reasons"]), ("IGNORED", ["unreachable: FileNotFoundError"]))
 
+    def test_invalid_caller_inputs_fail_safe(self):
+        body = raw(snapshot())
+        for decision in ["not-a-date", "2026-10-24T12:00:00", None, 12345, ""]:
+            r = check(body, decision)
+            self.assertEqual(r["status"], "IGNORED", decision)
+            self.assertTrue(r["reasons"][0].startswith("invalid decision time"), r["reasons"])
+        self.assertEqual(check(b"{}", "not-a-date")["status"], "IGNORED")
+        year_old = raw(snapshot(receivedAt="2025-10-24T11:30:00Z"))
+        for limit in [float("nan"), float("inf"), -1, 0, True, "36"]:
+            r = check(year_old, DECISION, limit)
+            self.assertEqual(r["status"], "IGNORED", limit)
+            self.assertTrue(r["reasons"][0].startswith("invalid max age"), (limit, r["reasons"]))
+        out = io.StringIO()
+        with redirect_stdout(out):
+            self.assertEqual(main(["--file", "/nonexistent", "--decision-at", "garbage", "--max-age-hours", "nan"]), 0)
+        r = json.loads(out.getvalue())
+        self.assertEqual(r["status"], "IGNORED")
+        self.assertEqual(len(r["reasons"]), 3, r["reasons"])
+
     def test_seeded_mutations_never_raise(self):
         rng = random.Random(221)
         base = snapshot()
