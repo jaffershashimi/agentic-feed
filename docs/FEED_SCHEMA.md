@@ -16,7 +16,7 @@ Compact JSON with sorted keys, at most 6,000 bytes. All values are rounded. `nul
 | `vol.vix_over_rv20` | VIX divided by `spx_rv20` |
 | `vol.exp_move_1d_pct`, `exp_move_5d_pct` | One-sigma index move implied by VIX, in % |
 | `trend.spx`, `spx_sma200`, `above_sma200` | S&P 500 level versus its 200-session average |
-| `macro.*` | 2y and 10y Treasury yields, 10y–2y spread, ICE BofA HY OAS, Chicago Fed NFCI, broad dollar index, and a v0 z-score composite (`score` > 0 means easier conditions, `tilt`) with its `missing` inputs |
+| `macro.*` | 2y and 10y Treasury yields, 10y–2y spread, Chicago Fed NFCI, broad dollar index, and a v0 z-score composite (`score` > 0 means easier conditions, `tilt`) with its `missing` inputs. The composite also uses the ICE BofA HY OAS internally; that raw value is not published, because FRED licenses ICE index data for internal use only |
 | `events` | Next 10 calendar days: `market_closed`, `early_close`, `fomc_statement` (time in PT), `monthly_opex` |
 | `data_health` | `core_ok` (VIX, VIX3M and the Cboe S&P 500 index present and fresh), plus `stale` and `failed` source names |
 | `note` | Usage caveat |
