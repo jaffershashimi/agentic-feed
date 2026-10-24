@@ -30,3 +30,18 @@ This replaces a flat "24 hours old" rule, which would wrongly reject every Monda
 ## Backup channels
 
 A Google Drive file or a Notion page may mirror the feed later. Until a backup channel is proven by a real scheduled run, the fallback is the consumer's existing method.
+
+## Release context (FRED v2 supplement)
+
+`feed/release-context.json` is checked separately with `consumer/check_release_context.py` (standard library, read-only). It prints one JSON line with `USED` or `IGNORED` and every reason, and it never fails the caller: an outage or a bad file is an `IGNORED` reason.
+
+The snapshot is `USED` only if all of these hold:
+- `schema` is `release-context/1`, `releaseId` is 221, `status` is `AVAILABLE` and `complete` is `true`.
+- `receivedAt` has a timezone, is not after the decision time, and is at most 36 hours old (the disclosed collection-age threshold; `--max-age-hours` changes it).
+- NFCI and ANFCI are both present, and neither has a future `availableAt`, `seriesUpdatedAt` or `observationDate`.
+- Values are finite or `null`. A `null` stays `null` and is flagged `VALUE_UNAVAILABLE`.
+- No series appears twice with different content (a mixed revision). An exact duplicate is harmless.
+
+Weekly observations older than 14 days are flagged `STALE_OBSERVATION` but stay context. The output carries `snapshotSha256` so a private consumer can store the exact snapshot it saw.
+
+`surprise` is always `UNKNOWN`: this feed has no consensus source. The values are financial-conditions background only, never an entry reason, a size change or a rule override, and a weekly observation date is not a live quote.
