@@ -35,6 +35,8 @@ jobs:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
       - name: Rule-level risk simulation (percent rules, seeded; unchanged output means no commit)
         run: python3 -m feed_pipeline.risksim --out feed/risk-sim.json
+      - name: Index volatility core (fail-soft; nulls when data is missing)
+        run: python3 -m feed_pipeline.volcore --out feed/vol-core.json
       - run: python3 scripts/privacy_check.py
       - name: Commit changed feed files
         run: |

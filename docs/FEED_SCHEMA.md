@@ -24,3 +24,22 @@ Compact JSON with sorted keys, at most 6,000 bytes. All values are rounded. `nul
 `feed/health.json` lists each source's provider, `as_of`, `ok`, `stale`, error text and URL.
 
 Schema changes bump the version. Consumers reject versions they don't know.
+
+## `feed/vol-core.json` (`vol-core/1`)
+
+This is a separate file, so `desk-feed.json` is unchanged. It covers the S&P 500 only until daily prices (P1-2) and our own option-implied-vol history (P1-7) exist. All values are computed from data on or before `session`; `null` means not enough history.
+
+| Field | Meaning |
+|---|---|
+| `rv20_pct` | 20-session realized vol, annualized %, measured four ways: `close_to_close`, `parkinson`, `garman_klass`, `yang_zhang` |
+| `garch11` | Gaussian GARCH(1,1) fitted by maximum likelihood with variance targeting on up to 1,000 daily returns. Gives `alpha`, `beta`, `persistence`, `long_run_vol`, forecast vols for 1, 5 and 21 days, and 1- and 5-day expected moves. Needs at least 250 returns |
+| `iv_rv_ratio` | VIX divided by close-to-close RV20 |
+| `vrp_vol_pts` | VIX minus RV20, in volatility points |
+| `vrp_variance` | (VIX² − RV20²) / 100 |
+| `iv_rank_252` | Where VIX sits in its own 252-session range, 0 to 100 |
+| `iv_pctile_252` | Share of the last 252 sessions with VIX at or below today's level, 0 to 100 |
+| `term_slope_3m_minus_1m` | VIX3M minus VIX |
+| `term_slope_1m_minus_9d` | VIX minus VIX9D |
+| `skew_index` | Cboe SKEW close |
+| `exp_move_1d_pct`, `exp_move_5d_pct` | One-sigma S&P 500 moves implied by VIX, in % |
+| `errors` | Sources that failed this run |
