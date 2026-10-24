@@ -46,15 +46,14 @@ Weekly observations older than 14 days are flagged `STALE_OBSERVATION` but stay 
 
 `surprise` is always `UNKNOWN`: this feed has no consensus source. The values are financial-conditions background only, never an entry reason, a size change or a rule override, and a weekly observation date is not a live quote.
 
-## Paper-desk ledger check
+## Paper-desk ledger check (v2)
 
 `consumer/paper_ledger.py` (standard library, read-only, no network, no broker) checks a private paper-trading fills CSV:
-- **Per-arm statistics:** closed trades, win rate, average win and loss, expectancy, net and running drawdown.
-- **Rule breaches:**
-  - a protective stop recorded within 5 minutes of entry and no looser than 15% for options or 20% for equity;
-  - concurrent positions;
-  - entries per Pacific day;
-  - entries after the day's first loss;
-  - oversells.
+- **Per-lane statistics, measured trades only:** closed trades, win rate, average win and loss, expectancy, net after recorded fees, and drawdown in closing-time order.
+- **Excluded, never counted:** any trade with a lifecycle problem: no entry, a stop recorded before the entry, a symbol, instrument or multiplier change inside the trade, missing or stale quote evidence, missing fees, a widened stop, or unbalanced spread legs. Each is listed with its reasons.
+- **Rule breaches:** a protective stop within 5 minutes of entry and no looser than the limit (options 15%, equity 20%, debit spreads 30% by default); no stop lower than an earlier one; concurrent positions; entries per Pacific day; entries after the day's first loss; oversells.
+- **Quote evidence on every fill:** `quote_time` at or before the fill, `received_at` at or after `quote_time`, `quote_delay` realtime, and an age within the limit (60 seconds by default). Anything else is not a fill.
+- **Shorts are disabled.** A short option is accepted only as the short leg of a debit spread, linked to its long leg by the same trade id (`leg` long / short, the spread's stop row uses `leg` net).
+- **Numeric CLI limits are validated**; the exit code is non-zero when there are errors, violations or excluded trades.
 
 Consumers download it pinned by commit, check its sha256, and run it with `python3 -I` on their own file; the ledger itself never comes to this repository. The same tool lives in the private Agentic-Lab repository with its design notes.
