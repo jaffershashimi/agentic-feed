@@ -7,5 +7,6 @@ A signal is promoted only when it improves out-of-sample, cost-aware results, wi
 | `regime` v0 rules | Informational only, not tested | None yet |
 | `macro` v0 z-score composite | Informational only, not tested | None yet |
 | VIX / realized-vol ratio | Context only, not tested as a filter | None yet |
+| `optionmath.option_structure` EV (P2-2) | Calculator, not tested | A stated EV threshold is an input, not evidence. Needs P3 validation against realized option paths. |
 
 No signal has been promoted. No performance improvement is claimed.

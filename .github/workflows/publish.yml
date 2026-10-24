@@ -33,6 +33,8 @@ jobs:
         run: python3 -m feed_pipeline.releases
         env:
           FRED_API_KEY: ${{ secrets.FRED_API_KEY }}
+      - name: Rule-level risk simulation (percent rules, seeded; unchanged output means no commit)
+        run: python3 -m feed_pipeline.risksim --out feed/risk-sim.json
       - name: Index volatility core (fail-soft; nulls when data is missing)
         run: python3 -m feed_pipeline.volcore --out feed/vol-core.json
       - run: python3 scripts/privacy_check.py
@@ -43,7 +45,16 @@ jobs:
           git add feed/
           if git diff --cached --quiet; then echo "No feed changes"; exit 0; fi
           git commit -m "feed: $(date -u +%Y-%m-%dT%H:%MZ)"
-          git push
+          # Another commit can land on main while this run builds (a delayed schedule, a merge). Rebase the feed-only
+          # commit onto it and retry, instead of failing the run with a rejected push.
+          for attempt in 1 2 3; do
+            if git push; then exit 0; fi
+            echo "push rejected (attempt $attempt); rebasing onto the latest main"
+            # A conflict can only be in feed/: a newer feed was already published, so keep that one.
+            if ! git pull --rebase origin main; then git rebase --abort; echo "a newer feed is already on main"; exit 0; fi
+            sleep $((attempt * 5))
+          done
+          exit 1
       - name: Fail the run if the feed was not built
         if: steps.build.outcome != 'success'
         run: exit 1
