@@ -34,6 +34,22 @@ class ParseTest(unittest.TestCase):
             vc.parse_ohlc("DATE,CLOSE\n10/20/2026,10\n")
 
 
+class ClosesOnlyTest(unittest.TestCase):
+    def test_live_cboe_spx_format_with_closes_only(self):
+        # The live SPX_History.csv is DATE plus one SPX column; it must load, and range estimators must be null.
+        closes = gbm(300, 0.2, 9)
+        text = "DATE,SPX\n" + "".join(f"{(D0 + timedelta(days=i)):%m/%d/%Y},{c}\n" for i, c in enumerate(closes))
+        bars = vc.parse_spx(text)
+        self.assertEqual(len(bars), 300)
+        self.assertIsNotNone(vc.close_to_close(bars))
+        self.assertIsNone(vc.parkinson(bars))
+        self.assertIsNone(vc.yang_zhang(bars))
+        out = vc.compute(bars, [(b[0], 15.0) for b in bars], [], [], [], bars[-1][0])
+        self.assertIsNotNone(out["garch11"])
+        self.assertIsNotNone(out["vrp_vol_pts"])
+        self.assertIn("closes only", out["rv_note"])
+
+
 class EstimatorTest(unittest.TestCase):
     def test_hand_calculations(self):
         # Alternating +1% / -1% log returns: close-to-close vol is sqrt(252) * sample sd.
