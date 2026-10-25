@@ -116,6 +116,21 @@ class LedgerTest(unittest.TestCase):
             self.assertIn(needle, text)
         self.assertEqual(out["rejected"], [], "rule breaches do not reject a well-formed trade")
 
+    def test_policy_without_first_loss_stop_lists_late_entries_as_notes(self):
+        data = rows(*WIN[:2], exit_("0.70"),
+                    dict(trade_id="t2", occurred_at="2026-10-26T16:00:00Z", quote_time="2026-10-26T15:59:00Z"),
+                    dict(STOP, trade_id="t2", price="0.90", occurred_at="2026-10-26T16:00:10Z"))
+        strict, _ = run(data)
+        self.assertIn("entries after the first loss on 2026-10-26: t2", "\n".join(strict["violations"]))
+        relaxed, _ = run(data, first_loss_stop=False)
+        self.assertEqual(relaxed["violations"], [])
+        self.assertEqual(relaxed["notes"], ["PAPER/A: entries after the first loss on 2026-10-26: t2"])
+        with tempfile.TemporaryDirectory() as tmp:
+            path = str(write(tmp, data))
+            with redirect_stdout(io.StringIO()):
+                self.assertEqual(main([path]), 1)
+                self.assertEqual(main([path, "--no-first-loss-stop"]), 0)
+
     def test_modes_and_arms_are_separate(self):
         eq = [dict(arm="B", instrument="equity", multiplier="1", price="100", ref_price="100", symbol="AMEX:DEMO"),
               dict(STOP, arm="B", instrument="equity", multiplier="1", price="81", symbol="AMEX:DEMO", occurred_at="2026-10-26T14:02:00Z")]
