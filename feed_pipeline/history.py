@@ -104,6 +104,18 @@ def append(path: Path, rec: dict) -> bool:
     return True
 
 
+def _unique_research_rows(rows: list) -> list:
+    """Keep the latest artifact for each research run key, ordered by its latest appearance."""
+    unique = {}
+    for row in rows:
+        run_key = (row.get("research") or {}).get("runKey")
+        if not isinstance(run_key, str) or not run_key:
+            continue
+        unique.pop(run_key, None)
+        unique[run_key] = row
+    return list(unique.values())
+
+
 def _pct(x, d=1):
     return "n/a" if x is None else f"{x * 100:.{d}f}%"
 
@@ -121,7 +133,10 @@ def render_log(rows: list) -> str:
     if not rows:
         return "\n".join(out + ["No runs recorded yet.", ""])
     last = rows[-1]
-    out += [f"Runs recorded: {len(rows)}. Latest session: {last.get('session')}.", ""]
+    research_rows = _unique_research_rows(rows)
+    paper_lab_records = sum(isinstance(row.get("paperLab"), dict) for row in rows)
+    out += [f"Records stored: {len(rows)}; unique research runs: {len(research_rows)}; "
+            f"paper-lab records: {paper_lab_records}. Latest record session: {last.get('session')}.", ""]
     res = last.get("research")
     if res:
         out += ["## Latest research run (holdout split)", "",
@@ -167,10 +182,10 @@ def render_log(rows: list) -> str:
             ci_txt = f"{_pct(ci[0])} to {_pct(ci[1])}" if isinstance(ci, list) and len(ci) == 2 and None not in ci else "n/a"
             out.append(f"| {k} | {h.get('n')} | {_pct(h.get('win_rate'))} | {_pct(h.get('mean_net'))} | {ci_txt} |")
         out.append("")
-    out += ["## Trend (one row per recorded run, newest last)", "",
+    out += ["## Trend (one row per unique research run, newest last)", "",
             "| session | call above SMA200 mean | its win rate | put every session mean | breakeven (size 10%) | VIX | VRP |",
             "|---|---|---|---|---|---|---|"]
-    for r in rows[-TREND_ROWS:]:
+    for r in research_rows[-TREND_ROWS:]:
         h = (r.get("research") or {}).get("holdout", {})
         be = next((x.get("breakeven_win_prob") for x in ((r.get("riskSim") or {}).get("size_score_8") or {}).get("results", [])), None)
         out.append(f"| {r.get('session')} | {_pct((h.get('call_above_sma200') or {}).get('mean_net'))} | "
