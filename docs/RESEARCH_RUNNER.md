@@ -58,7 +58,9 @@ After each publish run, `feed_pipeline/history.py` condenses research.json, risk
 - Damaged lines are skipped, never rewritten.
 - The step runs the privacy check on the branch before pushing, and a failure never blocks the feed.
 
-The same step rewrites `RESEARCH_LOG.md` on that branch, a readable reference for people and other assistants:
+The same step rewrites `RESEARCH_LOG.md` on that branch, a readable reference for people and other assistants. The log reports
+stored artifact count separately from unique `research.runKey` count; when a later paper-lab record repeats an existing
+research run, the run remains preserved as a distinct artifact but the trend table keeps one row for that research run:
 - the latest holdout table and the tail stress;
 - the risk-simulation breakevens;
 - the volatility context;
