@@ -12,7 +12,7 @@
   "option_quote_delay_minutes": 15,
   "spy_per_spx": 0.1
  },
- "createdAt": "2026-10-24T22:00:33+00:00",
+ "createdAt": "2026-10-25T00:35:57+00:00",
  "historical": {
   "dataClass": "HISTORICAL_UNDERLYING_MODELED_OPTIONS",
   "missingData": {
