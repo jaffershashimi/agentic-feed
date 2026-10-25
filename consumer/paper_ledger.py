@@ -7,8 +7,8 @@ malformed (inconsistent identity, events without or before an entry, overselling
 cites); it is unmeasured when an entry or exit fee is unknown (blank is unknown, never 0). Rule breaches (late, loose
 or widened stops, stale quotes, concurrency, entries per day, entries after the first loss) are listed for every trade
 and do not by themselves remove a valid trade from the statistics. A policy without a first-loss stop (paper policy p2)
-passes --no-first-loss-stop: such entries are then listed under notes, not violations. Open trades are never counted as wins or losses.
-A malformed row is reported and skipped, never guessed.
+passes --no-first-loss-stop: such entries are then listed under notes, not violations. Open trades are never counted
+as wins or losses. A malformed row is reported and skipped, never guessed.
 
     python3 -I consumer/paper_ledger.py fills.csv [--max-open 1] [--max-entries 2] [--option-stop 0.15]
         [--equity-stop 0.20] [--max-quote-age-minutes 20] [--no-first-loss-stop]
