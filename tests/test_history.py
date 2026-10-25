@@ -55,6 +55,16 @@ class SummarizeTest(unittest.TestCase):
         self.assertNotEqual(base, hi.summarize(RESEARCH, RISK, VOL, dict(FEED, session="2026-01-12"))["key"])
 
 
+class RenderTest(unittest.TestCase):
+    def test_log_separates_stored_records_from_unique_research_runs(self):
+        base = hi.summarize(RESEARCH, RISK, VOL, FEED)
+        paper_lab_extension = hi.summarize(RESEARCH, RISK, VOL, FEED, LAB)
+        log = hi.render_log([base, paper_lab_extension])
+        self.assertIn("Records stored: 2; unique research runs: 1; paper-lab records: 1.", log)
+        trend = log.split("## Trend (one row per unique research run, newest last)", 1)[1]
+        self.assertEqual(trend.count("| 2026-01-09 |"), 1)
+
+
 class StoreTest(unittest.TestCase):
     def test_append_is_idempotent_and_skips_damaged_lines(self):
         with tempfile.TemporaryDirectory() as d:
@@ -75,7 +85,7 @@ class StoreTest(unittest.TestCase):
             self.assertTrue(hi.run(Path(feed_dir), Path(out_dir)))
             self.assertFalse(hi.run(Path(feed_dir), Path(out_dir)), "an unchanged run appends nothing")
             log = (Path(out_dir) / hi.LOG).read_text()
-            for text in ("Runs recorded: 1", "| call_above_sma200 | 40 | 30.0% | -5.0% | -9.0% to -1.0% |", "not historical option quotes",
+            for text in ("Records stored: 1; unique research runs: 1; paper-lab records: 0.", "| call_above_sma200 | 40 | 30.0% | -5.0% | -9.0% to -1.0% |", "not historical option quotes",
                          "| size_score_8 | 30% | 43.0% | -0.65% | 100% |", "Tail stress (TAIL_STRESS_SYNTHETIC", "VRP 8.00"):
                 self.assertIn(text, log)
             self.assertEqual(privacy_check.scan(Path(out_dir)), [])
@@ -83,7 +93,8 @@ class StoreTest(unittest.TestCase):
     def test_missing_inputs_still_write_a_log(self):
         with tempfile.TemporaryDirectory() as feed_dir, tempfile.TemporaryDirectory() as out_dir:
             hi.run(Path(feed_dir), Path(out_dir))
-            self.assertIn("Runs recorded: 1", (Path(out_dir) / hi.LOG).read_text())
+            self.assertIn("Records stored: 1; unique research runs: 0; paper-lab records: 0.",
+                          (Path(out_dir) / hi.LOG).read_text())
             self.assertIn("No runs recorded yet.", hi.render_log([]))
 
 
