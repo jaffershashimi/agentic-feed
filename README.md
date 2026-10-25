@@ -34,3 +34,4 @@ Docs:
 - `docs/DESK_CONSUMER.md` (how a consumer must read the feed)
 - `docs/DATA_SOURCES.md`
 - `docs/SIGNAL_SCORECARD.md`
+- `docs/SCORE_CHECK.md` (does a higher entry score lead to better trades?)

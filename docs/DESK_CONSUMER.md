@@ -71,7 +71,7 @@ Weekly observations older than 14 days are flagged `STALE_OBSERVATION` but stay 
 - a stale quote;
 - concurrent positions;
 - entries per Pacific day;
-- entries after the first loss.
+- entries after the first loss (listed under `notes` instead with `--no-first-loss-stop`, for a policy such as paper p2 that has no first-loss stop).
 
 The settings must be finite and in range.
 

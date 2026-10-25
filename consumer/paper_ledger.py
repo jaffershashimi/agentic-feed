@@ -6,11 +6,12 @@ the running drawdown in closing order, computed from accepted trades only. A tra
 malformed (inconsistent identity, events without or before an entry, overselling, a fill better than the quote it
 cites); it is unmeasured when an entry or exit fee is unknown (blank is unknown, never 0). Rule breaches (late, loose
 or widened stops, stale quotes, concurrency, entries per day, entries after the first loss) are listed for every trade
-and do not by themselves remove a valid trade from the statistics. Open trades are never counted as wins or losses.
-A malformed row is reported and skipped, never guessed.
+and do not by themselves remove a valid trade from the statistics. A policy without a first-loss stop (paper policy p2)
+passes --no-first-loss-stop: such entries are then listed under notes, not violations. Open trades are never counted
+as wins or losses. A malformed row is reported and skipped, never guessed.
 
     python3 -I consumer/paper_ledger.py fills.csv [--max-open 1] [--max-entries 2] [--option-stop 0.15]
-        [--equity-stop 0.20] [--max-quote-age-minutes 20]
+        [--equity-stop 0.20] [--max-quote-age-minutes 20] [--no-first-loss-stop]
 
 CSV columns: event_id, mode (PAPER | REPLAY), arm, trade_id, kind (entry | exit | stop_set), occurred_at and
 quote_time (ISO with offset; quote_time is the market time of the quote used, for a delayed feed the delayed time),
@@ -135,13 +136,14 @@ def _lifecycle(t):
     return bad
 
 
-def analyze(rows, max_open=1, max_entries=2, option_stop=0.15, equity_stop=0.20, max_quote_age_minutes=20.0):
+def analyze(rows, max_open=1, max_entries=2, option_stop=0.15, equity_stop=0.20, max_quote_age_minutes=20.0,
+            first_loss_stop=True):
     _check_limits(max_open, max_entries, option_stop, equity_stop, max_quote_age_minutes)
     max_age = timedelta(minutes=max_quote_age_minutes)
     trades = {}
     for r in rows:
         trades.setdefault((r["mode"], r["arm"], r["trade_id"]), {"mode": r["mode"], "arm": r["arm"], "trade_id": r["trade_id"], "rows": []})["rows"].append(r)
-    violations, rejected = [], []
+    violations, rejected, notes = [], [], []
     for t in trades.values():
         bad = _lifecycle(t)
         rs = t["rows"]
@@ -196,7 +198,8 @@ def analyze(rows, max_open=1, max_entries=2, option_stop=0.15, equity_stop=0.20,
             if loss_times:
                 late = [u["trade_id"] for u in day_ts if u["opened"] > min(loss_times)]
                 if late:
-                    violations.append(f"{mode}/{arm}: entries after the first loss on {day}: {', '.join(late)}")
+                    (violations if first_loss_stop else notes).append(
+                        f"{mode}/{arm}: entries after the first loss on {day}: {', '.join(late)}")
         closed = [t for t in opened if t["closed"]]
         accepted = sorted((t for t in closed if t["valid"] and t["fees"] is not None), key=lambda t: t["closed"])
         pnl = [t["proceeds"] - t["cost"] - t["fees"] for t in accepted]
@@ -217,7 +220,7 @@ def analyze(rows, max_open=1, max_entries=2, option_stop=0.15, equity_stop=0.20,
             "expectancy": r2(sum(pnl) / len(pnl)) if pnl else None, "net_after_fees": r2(sum(pnl)), "max_drawdown": r2(drawdown),
             "returns_pct": [round(((t["proceeds"] - t["fees"]) / t["cost"] - 1) * 100, 2) if t["cost"] else None for t in accepted],
         }
-    return {"modes": report, "violations": violations, "rejected": rejected}
+    return {"modes": report, "violations": violations, "rejected": rejected, "notes": notes}
 
 
 def main(argv=None):
@@ -228,6 +231,8 @@ def main(argv=None):
     ap.add_argument("--option-stop", type=float, default=0.15)
     ap.add_argument("--equity-stop", type=float, default=0.20)
     ap.add_argument("--max-quote-age-minutes", type=float, default=20.0)
+    ap.add_argument("--no-first-loss-stop", dest="first_loss_stop", action="store_false",
+                    help="the policy allows entries after a losing trade the same day; list them as notes, not violations")
     a = ap.parse_args(argv)
     try:
         _check_limits(a.max_open, a.max_entries, a.option_stop, a.equity_stop, a.max_quote_age_minutes)
@@ -235,7 +240,7 @@ def main(argv=None):
         print(json.dumps({"errors": [f"settings: {exc}"]}))
         return 2
     rows, errors = load(a.path)
-    out = analyze(rows, a.max_open, a.max_entries, a.option_stop, a.equity_stop, a.max_quote_age_minutes)
+    out = analyze(rows, a.max_open, a.max_entries, a.option_stop, a.equity_stop, a.max_quote_age_minutes, a.first_loss_stop)
     out["errors"] = errors
     out["sample_note"] = ("Fills are simulated from observed quotes (PAPER) or replayed history (REPLAY), never mixed. Statistics use accepted "
                           "trades only; a small sample proves little, and overlapping or resampled trades are not independent evidence.")
