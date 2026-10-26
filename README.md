@@ -35,3 +35,4 @@ Docs:
 - `docs/DATA_SOURCES.md`
 - `docs/SIGNAL_SCORECARD.md`
 - `docs/SCORE_CHECK.md` (does a higher entry score lead to better trades?)
+- `docs/REPLAY_R2.md` (deterministic replay of frozen rules R2 over saved bars)
