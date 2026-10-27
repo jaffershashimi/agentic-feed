@@ -36,3 +36,4 @@ Docs:
 - `docs/SIGNAL_SCORECARD.md`
 - `docs/SCORE_CHECK.md` (does a higher entry score lead to better trades?)
 - `docs/REPLAY_R2.md` (deterministic replay of frozen rules R2 over saved bars)
+- `docs/COMPARE_ARMS.md` (paired R2 vs R3 and tag comparison, Holm-adjusted)
