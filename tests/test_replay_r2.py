@@ -138,6 +138,23 @@ class ReplayR2Tests(unittest.TestCase):
         bars, daily, _level = market()
         self.assertEqual(replay(bars, daily, [DAY], done={"R2|2026-11-10|DEMO"}), ([], [], [], []))
 
+    def test_r3_scores_trend_and_relative_volume_separately(self):
+        bars, daily, _level = market()
+        ledger, parts, decisions, keys = replay(bars, daily, [DAY], done={"R2|2026-11-10|DEMO"}, rules="R3",
+                                                r2_hash="abc123def456")
+        self.assertEqual(keys, ["R3|2026-11-10|DEMO"])  # an R2 key does not block R3
+        (entry,) = rows_of(ledger, "entry")
+        self.assertEqual((entry["arm"], entry["trade_id"], entry["decision_id"]),
+                         ("REPLAY-B-R3-DEMO", "R3B-DEMO-20261110-0645", "R3-20261110-DEMO-0645"))
+        self.assertTrue(entry["source"].startswith("REPLAY_R3;R3_abc123def456;BREAK_1H_HIGH"))
+        got = {p["criterion"]: p["points"] for p in parts}
+        self.assertEqual(list(got), ["context", "room", "risk", "trend_1h_4h", "rel_volume"])
+        rel = float(next(p["value"] for p in parts if p["criterion"] == "rel_volume").split("=")[1])
+        self.assertEqual(got["rel_volume"], 2 if rel >= 1.5 else 1 if rel >= 1.0 else 0)
+        self.assertEqual((got["context"], got["room"], got["risk"], got["trend_1h_4h"]), (2, 2, 2, 2))
+        self.assertEqual(entry["score"], str(sum(got.values())))
+        self.assertEqual(decisions[0]["score"], sum(got.values()))
+
     def test_stop_rounds_up_and_derived_windows(self):
         self.assertEqual(stop_price(100.0), 80.0)
         self.assertEqual(stop_price(10.006), 8.01)
