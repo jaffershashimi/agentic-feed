@@ -21,6 +21,10 @@ What R2 says, in short (the Drive doc "Replay Rules R2" is the source of truth):
   are checked on real option bars, and the underlying exit rules move the option to the first real option bar at
   or after the stock exit bar. REALISTIC prices (bar midpoint +/- 3%) go to decisions.json only.
 
+- R3 (--rules R3 --r2-hash <R3_HASH>): identical to R2 except the D3 score, which is context, room, risk,
+  trend_1h_4h (1h close above EMA21 and 4h close above EMA20: 2 for both, 1 for one) and rel_volume (2 at 1.5+, 1 at
+  1.0+). Arms REPLAY-A-R3-<SYM>, trade ids R3A-/R3B-, decision ids R3-..., session keys R3|YYYY-MM-DD|SYM.
+
 Without --option-bars, every entry records arm A as MISSING_DATA and arm B takes the stock, which is what R2
 section 6 prescribes when no option data exists. Each arm has its own p2 caps.
 
@@ -55,7 +59,8 @@ FIRST_DECISION, LAST_DECISION = time(6, 45), time(12, 45)
 EARNINGS_EXIT_BAR = time(12, 50)  # its close triggers the exit at the 12:55 bar open
 EQUITY, MAX_OPEN, MAX_ENTRIES, MAX_OPEN_SIZE = 5000.0, 3, 5, 3750.0
 FIVE = timedelta(minutes=5)
-CRITERIA = ("context", "trigger", "liquidity", "room", "risk")
+CRITERIA = {"R2": ("context", "trigger", "liquidity", "room", "risk"),
+            "R3": ("context", "room", "risk", "trend_1h_4h", "rel_volume")}
 LEDGER_FIELDS = COLUMNS + ("score", "source")
 PARTS_FIELDS = ("decision_id", "trade_id", "arm", "criterion", "points", "value")
 EPS = 1e-9
@@ -206,7 +211,7 @@ def _next_sessions(day, count):
     return out
 
 
-def evaluate(sym, s, t, earnings, macro):
+def evaluate(sym, s, t, earnings, macro, rules="R2"):
     """One decision point at t (end of a completed 15m bar). Returns a decision dict, or None without a trigger."""
     k = s.completed(s.m15, t)
     if k is None or s.m15[k]["end"] != t or k < 4:
@@ -248,7 +253,9 @@ def evaluate(sym, s, t, earnings, macro):
         return out
     ema20_prior = s.daily_ema20[len(prior) - 1]
     i1, i4 = s.completed(s.h1, t), s.completed(s.h4, t)
-    trend = bool(i1 is not None and i4 is not None and s.h1[i1]["c"] > s.ema1h[i1] and s.h4[i4]["c"] > s.ema4h[i4])
+    above_1h = bool(i1 is not None and s.h1[i1]["c"] > s.ema1h[i1])
+    above_4h = bool(i4 is not None and s.h4[i4]["c"] > s.ema4h[i4])
+    trend = above_1h and above_4h
     elapsed = (t - _at(day, OPEN)).total_seconds() / 60
     rel_volume = cum_v / (adv20 * elapsed / 390)
     low = min(b["l"] for b in s.m15[k - 3:k + 1])
@@ -269,6 +276,10 @@ def evaluate(sym, s, t, earnings, macro):
                  f"R={'none' if level is None else f'{level:.4f}'};I={low:.4f};ratio={'none' if ratio is None else f'{ratio:.4f}'}"),
         "risk": (risk, f"window={window[0]}..{window[-1]}"),
     }
+    if rules == "R3":  # R3: trigger and liquidity leave the score; trend and relative volume are scored on their own
+        del parts["trigger"], parts["liquidity"]
+        parts["trend_1h_4h"] = (int(above_1h) + int(above_4h), f"{trigger};above_1h_ema21={int(above_1h)};above_4h_ema20={int(above_4h)}")
+        parts["rel_volume"] = (2 if rel_volume >= 1.5 else 1 if rel_volume >= 1.0 else 0, f"rel_volume={rel_volume:.4f}")
     out.update(parts=parts, score=sum(p for p, _v in parts.values()))
     return out
 
@@ -456,14 +467,15 @@ def _capped(trades, at, day, size):
     return len(live) >= MAX_OPEN or len(today) >= MAX_ENTRIES or sum(x[2] for x in live) + size > MAX_OPEN_SIZE + EPS
 
 
-def replay(bars, daily, days, earnings=(), macro=R2_MACRO, done=(), r2_hash=R2_HASH, option_bars=None, chain=None):
+def replay(bars, daily, days, earnings=(), macro=R2_MACRO, done=(), r2_hash=R2_HASH, option_bars=None, chain=None,
+           rules="R2"):
     """Replay `days` for every symbol with both bar sets. Returns ledger rows, score parts, decisions and new keys.
 
     option_bars (from load_option_bars) turns on the option arms; chain (from load_chain) lists the strikes, else the
     strikes with bars count as listed."""
     earnings, macro, done = set(earnings), set(macro), set(done)
     ledger, parts, decisions, keys = [], [], [], []
-    source = f"REPLAY_R2;R2_{r2_hash}"
+    source = f"REPLAY_{rules};{rules}_{r2_hash}"
     for sym in sorted(set(bars) & set(daily)):
         s = Symbol(bars[sym], daily[sym])
         series = (option_bars or {}).get(sym, {})
@@ -474,18 +486,18 @@ def replay(bars, daily, days, earnings=(), macro=R2_MACRO, done=(), r2_hash=R2_H
                 listed[expiry].append(strike)
         trades = {"A": [], "B": []}  # per arm: (entry time, exit time or None, size)
         for day in sorted(days):
-            key = f"R2|{day.isoformat()}|{sym}"
+            key = f"{rules}|{day.isoformat()}|{sym}"
             if key in done or not any(b["day"] == day for b in s.bars):
                 continue
             keys.append(key)
             t = _at(day, FIRST_DECISION)
             while t <= _at(day, LAST_DECISION):
-                d = evaluate(sym, s, t, earnings, macro)
+                d = evaluate(sym, s, t, earnings, macro, rules)
                 t += timedelta(minutes=15)
                 if d is None:
                     continue
                 stamp = _pt(d["time"]).strftime("%Y%m%d-%H%M")
-                d["decision_id"] = f"R2-{stamp[:8]}-{sym}-{stamp[9:]}"
+                d["decision_id"] = f"{rules}-{stamp[:8]}-{sym}-{stamp[9:]}"
                 decisions.append(d)
                 if d["failed"] or d["score"] < 6:
                     d["action"] = "SKIP"
@@ -513,7 +525,7 @@ def replay(bars, daily, days, earnings=(), macro=R2_MACRO, done=(), r2_hash=R2_H
                     if arm_letter == "A" and not use_option:
                         d["arm_a"] = pick["status"]
                         continue
-                    arm, tid = f"REPLAY-{arm_letter}-R2-{sym}", f"R2{arm_letter}-{sym}-{stamp}"
+                    arm, tid = f"REPLAY-{arm_letter}-{rules}-{sym}", f"{rules}{arm_letter}-{sym}-{stamp}"
                     at = s.bars[entry_i]["start"].isoformat()
                     common = dict(mode="REPLAY", arm=arm, trade_id=tid, symbol=sym, policy_hash=POLICY_HASH,
                                   decision_id=d["decision_id"], score=str(d["score"]))
@@ -562,7 +574,7 @@ def replay(bars, daily, days, earnings=(), macro=R2_MACRO, done=(), r2_hash=R2_H
                     trades[arm_letter].append((d["time"], exit_at, size))
                     entered.append(tid)
                     d[f"exit_{arm_letter.lower()}"] = reason if found else "UNRESOLVED"
-                    for name in CRITERIA:
+                    for name in CRITERIA[rules]:
                         points, value = d["parts"][name]
                         parts.append({"decision_id": d["decision_id"], "trade_id": tid, "arm": arm, "criterion": name,
                                       "points": points, "value": value})
@@ -571,7 +583,7 @@ def replay(bars, daily, days, earnings=(), macro=R2_MACRO, done=(), r2_hash=R2_H
                     continue
                 d.update(action="ENTER", trade_ids=entered)
                 if "exit_b" in d:  # kept for readers of the stock-arm fields
-                    d.update(trade_id=f"R2B-{sym}-{stamp}", exit=d["exit_b"])
+                    d.update(trade_id=f"{rules}B-{sym}-{stamp}", exit=d["exit_b"])
     return ledger, parts, decisions, keys
 
 
@@ -604,9 +616,11 @@ def main(argv=None):
     ap.add_argument("--option-bars", help="call 5m bars CSV; turns on the option arms")
     ap.add_argument("--chain", help="listed call strikes CSV (underlying, expiration, strike)")
     ap.add_argument("--events")
-    ap.add_argument("--done", help="replay_sessions.csv; keys already replayed under R2 are skipped")
+    ap.add_argument("--done", help="replay_sessions.csv (key or session_key column); keys already replayed are skipped")
     ap.add_argument("--out", default=".")
-    ap.add_argument("--r2-hash", default=R2_HASH)
+    ap.add_argument("--r2-hash", default=R2_HASH, help="rules hash for the source column (the R3_HASH with --rules R3)")
+    ap.add_argument("--rules", choices=("R2", "R3"), default="R2",
+                    help="R3 = R2 with the R3 score (context, room, risk, trend_1h_4h, rel_volume)")
     a = ap.parse_args(argv)
     try:
         earnings, macro = load_events(a.events)
@@ -616,11 +630,11 @@ def main(argv=None):
     done = set()
     if a.done and Path(a.done).exists():
         with open(a.done, newline="", encoding="utf-8") as fh:
-            done = {r["key"] for r in csv.DictReader(fh)}
+            done = {(r.get("key") or r.get("session_key") or "").strip() for r in csv.DictReader(fh)}
     option_bars = load_option_bars(a.option_bars) if a.option_bars else None
     chain = load_chain(a.chain) if a.chain else None
     ledger, parts, decisions, keys = replay(load_bars(a.bars), load_daily(a.daily), a.days, earnings, macro, done, a.r2_hash,
-                                            option_bars, chain)
+                                            option_bars, chain, a.rules)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     for name, fields, rows in (("replay_fills.csv", LEDGER_FIELDS, ledger), ("score_parts.csv", PARTS_FIELDS, parts),

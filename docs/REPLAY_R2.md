@@ -32,6 +32,12 @@ python3 -I -m consumer.replay_r2 --bars bars5m.csv --daily daily.csv --days 2026
   - Each arm has its own p2 caps (3 open, 5 entries a session, $3,750 open size).
 - Without `--option-bars`, each entry records arm A as `MISSING_DATA` and arm B takes the stock, as R2 section 6 prescribes when no option data exists.
 
+## R3 (score test, replay only)
+
+`--rules R3 --r2-hash <R3_HASH>` replays R3: identical to R2 except the D3 score, which becomes context, room and risk (as R2), `trend_1h_4h` (2 if the last completed 1h close is above the 1h EMA21 and the last completed 4h close is above the 4h EMA20, 1 if one of them) and `rel_volume` (2 at 1.5 or more, 1 at 1.0 or more). The trigger stays required and ADV20 stays filter F1. Arms `REPLAY-A-R3-<SYM>`, trade ids `R3A-`/`R3B-`, decision ids `R3-...`, session keys `R3|YYYY-MM-DD|SYM`, source `REPLAY_R3;R3_<hash>`. Running R2 and R3 through the same engine keeps the paired comparison (`compare_arms.py`) about the score alone.
+
+`--done` accepts a file with a `key` or `session_key` column, so the project's `replay_sessions.csv` can be passed as is.
+
 ## Validation against the real R2 ledger (2026-10-27)
 
 Run on Robinhood bars for two symbols the 1:23 run replayed by hand:
