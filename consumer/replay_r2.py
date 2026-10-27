@@ -1,4 +1,5 @@
-"""Replay engine for frozen replay rules R2 (stock arm). Standard library only, offline, no broker, no orders.
+"""Replay engine for frozen replay rules R2 (stock and option arms). Standard library only, offline, no broker,
+no orders.
 
 Reads 5-minute and daily bars from CSV files, replays the requested sessions bar by bar with no look-ahead and writes
 the ledger rows (paper_ledger.py format plus a `score` column), the score parts and one record per decision point.
@@ -13,15 +14,25 @@ What R2 says, in short (the Drive doc "Replay Rules R2" is the source of truth):
 - Exits: fading momentum on 15m, 4h close under EMA20, earnings before the next open, 5-session time stop, then the
   stop and the 30% target, in that order inside one bar.
 
-Arm A (options) needs option bars and is not built yet: every entry records arm A as MISSING_DATA and arm B takes the
-stock, which is what R2 section 6 prescribes when no option data exists.
+- Options (R2 sections 6 to 8, only with --option-bars): Arm A buys the call R2 picks (first expiry 21+ calendar
+  days out, rough-delta candidates, IV solved from the option bar ending at the decision, delta 0.30 to 0.60, cost
+  within the size); Arm B takes the same call when its IV / RV20 is 1.5 or lower, otherwise the stock. HARSH fills
+  (buy the entry bar high, sell the exit bar low, $0.68 per contract per side); the 15% option stop and +30% target
+  are checked on real option bars, and the underlying exit rules move the option to the first real option bar at
+  or after the stock exit bar. REALISTIC prices (bar midpoint +/- 3%) go to decisions.json only.
+
+Without --option-bars, every entry records arm A as MISSING_DATA and arm B takes the stock, which is what R2
+section 6 prescribes when no option data exists. Each arm has its own p2 caps.
 
     python3 -I -m consumer.replay_r2 --bars bars5m.csv --daily daily.csv --days 2026-10-26 [--days ...]
-        [--events events.json] [--done replay_sessions.csv] [--out DIR] [--r2-hash c879c06e24a5]
+        [--option-bars options5m.csv] [--chain chain.csv] [--events events.json] [--done replay_sessions.csv]
+        [--out DIR] [--r2-hash c879c06e24a5]
 
 bars5m.csv and daily.csv columns: symbol, begins_at, open, high, low, close, volume[, interpolated]. events.json:
 {"earnings": [{"symbol": "X", "date": "YYYY-MM-DD", "timing": "am" | "pm"}], "macro": ["YYYY-MM-DD", ...]}; without
-it the R2 macro list is used and no earnings are known.
+it the R2 macro list is used and no earnings are known. options5m.csv columns: underlying, expiration (YYYY-MM-DD),
+strike, begins_at, open, high, low, close, volume[, interpolated] (calls only). chain.csv (underlying, expiration,
+strike) lists every call strike; without it, the strikes and expirations in options5m.csv count as listed.
 """
 import argparse
 import csv
@@ -31,6 +42,7 @@ import sys
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from consumer.paper_ledger import COLUMNS, PT
 from feed_pipeline import calendar
@@ -47,6 +59,8 @@ CRITERIA = ("context", "trigger", "liquidity", "room", "risk")
 LEDGER_FIELDS = COLUMNS + ("score", "source")
 PARTS_FIELDS = ("decision_id", "trade_id", "arm", "criterion", "points", "value")
 EPS = 1e-9
+RATE, OPTION_FEE, MIN_DTE = 0.04, 0.68, 21
+ET = ZoneInfo("America/New_York")
 
 
 def _pt(at):
@@ -263,8 +277,10 @@ def stop_price(fill):
     return math.ceil(round(fill * 0.80 * 100, 6)) / 100  # rounded up to the cent, never looser
 
 
-def exit_for(sym, s, entry_i, ref, fill, stop, earnings):
-    """First R2 exit for a stock position entered at the open of 5m bar entry_i. Returns (bar index, reason) or None."""
+def exit_for(sym, s, entry_i, ref, fill, stop, earnings, price_rules=True):
+    """First R2 exit for a stock position entered at the open of 5m bar entry_i. Returns (bar index, reason) or None.
+
+    With price_rules False only the underlying rules apply (the stop and target of an option are on option bars)."""
     bars, entry_at = s.bars, s.bars[entry_i]["start"]
     entry_day = bars[entry_i]["day"]
     stop_day = (_next_sessions(entry_day, 5) or [entry_day])[-1]
@@ -289,28 +305,174 @@ def exit_for(sym, s, entry_i, ref, fill, stop, earnings):
         last_of_day = j + 1 == len(bars) or bars[j + 1]["day"] != b["day"]
         if reason is None and last_of_day and b["day"] >= stop_day:
             reason = "EXIT_TIME_STOP_5D"
-        if reason is None and b["l"] <= stop + EPS:
+        if reason is None and price_rules and b["l"] <= stop + EPS:
             reason = "EXIT_STOP_20PCT"
-        if reason is None and b["c"] >= fill * 1.30 - EPS:
+        if reason is None and price_rules and b["c"] >= fill * 1.30 - EPS:
             reason = "EXIT_TARGET_30PCT"
         if reason:
             return (j + 1, reason) if j + 1 < len(bars) else None
     return None
 
 
+def load_option_bars(path):
+    """Call bars per underlying and (expiration, strike), regular session only, interpolated bars dropped."""
+    out = defaultdict(lambda: defaultdict(list))
+    with open(path, newline="", encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            if (r.get("interpolated") or "").strip().lower() in ("true", "1", "yes"):
+                continue
+            start = datetime.fromisoformat(r["begins_at"].replace("Z", "+00:00")).astimezone(timezone.utc)
+            if not OPEN <= _pt(start).time() < CLOSE:
+                continue
+            key = (date.fromisoformat(r["expiration"][:10]), float(r["strike"]))
+            out[r["underlying"].strip()][key].append({"start": start, "o": float(r["open"]), "h": float(r["high"]),
+                                                      "l": float(r["low"]), "c": float(r["close"]), "v": float(r["volume"])})
+    return {u: {k: sorted(bs, key=lambda b: b["start"]) for k, bs in m.items()} for u, m in out.items()}
+
+
+def load_chain(path):
+    out = defaultdict(lambda: defaultdict(set))
+    with open(path, newline="", encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            out[r["underlying"].strip()][date.fromisoformat(r["expiration"][:10])].add(float(r["strike"]))
+    return {u: {e: sorted(s) for e, s in m.items()} for u, m in out.items()}
+
+
+def _ncdf(x):
+    return 0.5 * (1 + math.erf(x / math.sqrt(2)))
+
+
+def bs_call(spot, strike, years, vol, rate=RATE):
+    """Black-Scholes call price and delta (no dividend)."""
+    if years <= 0 or vol <= 0:
+        return max(spot - strike, 0.0), 1.0 if spot > strike else 0.0
+    d1 = (math.log(spot / strike) + (rate + vol * vol / 2) * years) / (vol * math.sqrt(years))
+    d2 = d1 - vol * math.sqrt(years)
+    return spot * _ncdf(d1) - strike * math.exp(-rate * years) * _ncdf(d2), _ncdf(d1)
+
+
+def implied_vol(price, spot, strike, years, rate=RATE):
+    """Volatility that reproduces price (bisection, 1% to 500%), or None when no volatility in that range does."""
+    lo, hi = 0.01, 5.0
+    if not bs_call(spot, strike, years, lo, rate)[0] - EPS <= price <= bs_call(spot, strike, years, hi, rate)[0] + EPS:
+        return None
+    for _ in range(100):
+        mid = (lo + hi) / 2
+        if bs_call(spot, strike, years, mid, rate)[0] < price:
+            lo = mid
+        else:
+            hi = mid
+    return (lo + hi) / 2
+
+
+def years_to(t, expiry):
+    """Calendar years from t to 16:00 ET on the expiry date."""
+    return (datetime.combine(expiry, time(16, 0), ET) - t).total_seconds() / (365 * 86400)
+
+
+def rv20(prior):
+    """Sample standard deviation of the last 20 daily log returns, annualized with sqrt(252)."""
+    closes = [d["c"] for d in prior[-21:]]
+    if len(closes) < 21:
+        return None
+    rets = [math.log(b / a) for a, b in zip(closes, closes[1:])]
+    mean = sum(rets) / len(rets)
+    return math.sqrt(sum((x - mean) ** 2 for x in rets) / (len(rets) - 1)) * math.sqrt(252)
+
+
+def occ(sym, expiry, strike):
+    return f"{sym}{expiry:%y%m%d}C{round(strike * 1000):08d}"
+
+
+def choose_option(sym, d, prior, listed, series, size):
+    """R2 section 6 Arm A contract for decision d. Returns a dict with status OK, NO_FIT or MISSING_DATA."""
+    t, spot = d["time"], d["price"]
+    rv = rv20(prior)
+    expiries = sorted(e for e in listed if e >= d["day"] + timedelta(days=MIN_DTE))
+    if rv is None or not expiries:
+        return {"status": "MISSING_DATA", "rv20": rv, "candidates": []}
+    expiry = expiries[0]
+    years = years_to(t, expiry)
+    rough_vol = 1.3 * max(rv, 0.15)
+    rough = [(abs(delta - 0.45), k, delta) for k in listed[expiry]
+             for delta in [bs_call(spot, k, years, rough_vol)[1]] if 0.22 - EPS <= delta <= 0.68 + EPS]
+    candidates, with_data = [], []
+    for _gap, strike, _delta in sorted(rough)[:10]:
+        bars = {b["start"]: b for b in series.get((expiry, strike), [])}
+        prev, entry = bars.get(t - FIVE), bars.get(t)
+        if not prev or not entry:
+            candidates.append({"strike": strike, "status": "NO_BARS"})
+            continue
+        iv = implied_vol(prev["c"], spot, strike, years)
+        delta = bs_call(spot, strike, years, iv)[1] if iv else None
+        cost = entry["h"] * 100 + OPTION_FEE
+        c = {"strike": strike, "iv": iv, "delta": delta, "cost": round(cost, 2), "entry_bar": entry}
+        c["eligible"] = bool(delta is not None and 0.30 - EPS <= delta <= 0.60 + EPS and cost <= size + EPS)
+        candidates.append(c)
+        with_data.append(c)
+    eligible = [c for c in with_data if c["eligible"]]
+    out = {"expiry": expiry, "rv20": rv, "candidates": candidates}
+    if not with_data:
+        return dict(out, status="MISSING_DATA")
+    if not eligible:
+        return dict(out, status="NO_FIT")
+    pick = min(eligible, key=lambda c: (abs(c["delta"] - 0.45), c["strike"]))
+    return dict(out, status="OK", strike=pick["strike"], iv=pick["iv"], delta=pick["delta"], ivrv=pick["iv"] / rv,
+                qty=int(size // pick["cost"]), fill=pick["entry_bar"]["h"], entry_bar=pick["entry_bar"],
+                occ=occ(sym, expiry, pick["strike"]))
+
+
+def option_stop(fill):
+    return math.ceil(round(fill * 0.85 * 100, 6)) / 100  # rounded up to the cent, never looser
+
+
+def option_exit(obars, entry_start, fill, stop, underlying):
+    """R2 section 8 for an option: (exit bar, price, reason) or None. underlying = (stock exit bar start, reason)."""
+    later = [b for b in obars if b["start"] > entry_start]
+    for i, b in enumerate(later):
+        if underlying and b["start"] >= underlying[0]:
+            return b, b["l"], f"EXIT_MIRROR_{underlying[1]}"
+        if b["l"] <= stop + EPS:
+            return b, b["l"], "EXIT_STOP_15PCT"
+        if b["c"] >= fill * 1.30 - EPS:
+            return (later[i + 1], later[i + 1]["l"], "EXIT_TARGET_30PCT_NEXT_BAR") if i + 1 < len(later) else None
+    return None
+
+
+def _realistic(entry_bar, exit_bar, qty):
+    buy = (entry_bar["h"] + entry_bar["l"]) / 2 * 1.03
+    sell = (exit_bar["h"] + exit_bar["l"]) / 2 * 0.97
+    return {"entry": round(buy, 4), "exit": round(sell, 4),
+            "net": round((sell - buy) * 100 * qty - 2 * OPTION_FEE * qty, 2)}
+
+
 def _row(**kw):
     return {f: kw.get(f, "") for f in LEDGER_FIELDS}
 
 
-def replay(bars, daily, days, earnings=(), macro=R2_MACRO, done=(), r2_hash=R2_HASH):
-    """Replay `days` for every symbol with both bar sets. Returns ledger rows, score parts, decisions and new keys."""
+def _capped(trades, at, day, size):
+    live = [x for x in trades if x[1] is None or x[1] > at]
+    today = [x for x in trades if _pt(x[0]).date() == day]
+    return len(live) >= MAX_OPEN or len(today) >= MAX_ENTRIES or sum(x[2] for x in live) + size > MAX_OPEN_SIZE + EPS
+
+
+def replay(bars, daily, days, earnings=(), macro=R2_MACRO, done=(), r2_hash=R2_HASH, option_bars=None, chain=None):
+    """Replay `days` for every symbol with both bar sets. Returns ledger rows, score parts, decisions and new keys.
+
+    option_bars (from load_option_bars) turns on the option arms; chain (from load_chain) lists the strikes, else the
+    strikes with bars count as listed."""
     earnings, macro, done = set(earnings), set(macro), set(done)
     ledger, parts, decisions, keys = [], [], [], []
     source = f"REPLAY_R2;R2_{r2_hash}"
     for sym in sorted(set(bars) & set(daily)):
         s = Symbol(bars[sym], daily[sym])
-        arm = f"REPLAY-B-R2-{sym}"
-        trades = []  # (entry time, exit time or None, size)
+        series = (option_bars or {}).get(sym, {})
+        listed = (chain or {}).get(sym)
+        if listed is None:
+            listed = defaultdict(list)
+            for expiry, strike in sorted(series):
+                listed[expiry].append(strike)
+        trades = {"A": [], "B": []}  # per arm: (entry time, exit time or None, size)
         for day in sorted(days):
             key = f"R2|{day.isoformat()}|{sym}"
             if key in done or not any(b["day"] == day for b in s.bars):
@@ -328,43 +490,88 @@ def replay(bars, daily, days, earnings=(), macro=R2_MACRO, done=(), r2_hash=R2_H
                 if d["failed"] or d["score"] < 6:
                     d["action"] = "SKIP"
                     continue
-                size = 750.0 if d["score"] >= 9 else 500.0
-                live = [x for x in trades if x[1] is None or x[1] > d["time"]]
-                today = [x for x in trades if _pt(x[0]).date() == day]
-                if len(live) >= MAX_OPEN or len(today) >= MAX_ENTRIES or sum(x[2] for x in live) + size > MAX_OPEN_SIZE + EPS:
-                    d["failed"].append("F7_CAPS")
-                    d["action"] = "SKIP"
-                    continue
                 entry_i = s.start_index.get(d["time"])
                 if entry_i is None:
                     d["action"] = "SKIP_NO_ENTRY_BAR"
                     continue
+                size = 750.0 if d["score"] >= 9 else 500.0
+                pick = (choose_option(sym, d, s.prior_daily(day), listed, series, size) if option_bars is not None
+                        else {"status": "MISSING_DATA", "candidates": []})
+                d["option"] = {k: v for k, v in pick.items() if k not in ("entry_bar", "candidates")}
+                d["option"]["candidates"] = [{k: v for k, v in c.items() if k != "entry_bar"} for c in pick["candidates"]]
                 ref = s.bars[entry_i]["o"]
-                fill = round(ref * 1.0005, 4)
-                qty = math.floor(size / fill * 1e6) / 1e6
-                stop = stop_price(fill)
-                tid = f"R2B-{sym}-{stamp}"
-                at = s.bars[entry_i]["start"].isoformat()
-                common = dict(mode="REPLAY", arm=arm, trade_id=tid, symbol=sym, instrument="equity", qty=f"{qty:.6f}",
-                              multiplier="1", policy_hash=POLICY_HASH, decision_id=d["decision_id"], score=str(d["score"]))
-                ledger.append(_row(**common, event_id=f"{tid}-E", kind="entry", occurred_at=at, quote_time=at, side="buy",
-                                   price=f"{fill:.4f}", ref_price=f"{ref:.4f}", fees="0", source=f"{source};{d['trigger']}"))
-                ledger.append(_row(**common, event_id=f"{tid}-S", kind="stop_set", occurred_at=at, side="sell",
-                                   price=f"{stop:.2f}", source=f"{source};STOP_20PCT"))
-                found = exit_for(sym, s, entry_i, ref, fill, stop, earnings)
-                if found:
-                    j, reason = found
-                    xref = s.bars[j]["o"]
-                    xat = s.bars[j]["start"].isoformat()
-                    ledger.append(_row(**common, event_id=f"{tid}-X", kind="exit", occurred_at=xat, quote_time=xat,
-                                       side="sell", price=f"{xref * 0.9995:.4f}", ref_price=f"{xref:.4f}", fees="0",
-                                       source=f"{source};{reason}"))
-                trades.append((d["time"], s.bars[found[0]]["start"] if found else None, size))
-                d.update(action="ENTER", trade_id=tid, arm_a="MISSING_DATA", exit=found[1] if found else "UNRESOLVED")
-                for name in CRITERIA:
-                    points, value = d["parts"][name]
-                    parts.append({"decision_id": d["decision_id"], "trade_id": tid, "arm": arm, "criterion": name,
-                                  "points": points, "value": value})
+                underlying = exit_for(sym, s, entry_i, ref, ref, 0.0, earnings, price_rules=False)
+                und = (s.bars[underlying[0]]["start"], underlying[1]) if underlying else None
+                entered = []
+                for arm_letter in ("A", "B"):
+                    if _capped(trades[arm_letter], d["time"], day, size):
+                        d[f"arm_{arm_letter.lower()}"] = "CAP_D4"
+                        if arm_letter == "B":
+                            d["failed"].append("F7_CAPS")
+                        continue
+                    use_option = pick["status"] == "OK" and (arm_letter == "A" or pick["ivrv"] <= 1.5 + EPS)
+                    if arm_letter == "A" and not use_option:
+                        d["arm_a"] = pick["status"]
+                        continue
+                    arm, tid = f"REPLAY-{arm_letter}-R2-{sym}", f"R2{arm_letter}-{sym}-{stamp}"
+                    at = s.bars[entry_i]["start"].isoformat()
+                    common = dict(mode="REPLAY", arm=arm, trade_id=tid, symbol=sym, policy_hash=POLICY_HASH,
+                                  decision_id=d["decision_id"], score=str(d["score"]))
+                    if use_option:
+                        fill, qty = pick["fill"], pick["qty"]
+                        stop = option_stop(fill)
+                        tag = (f"RH_OPT_5M;BUY_BAR_HIGH;{pick['occ']};DELTA_{pick['delta']:.2f};IV_{pick['iv']:.3f};"
+                               f"IVRV_{pick['ivrv']:.2f}" + (";ARMB_OPTION_PATH" if arm_letter == "B" else ""))
+                        common.update(instrument="option", qty=str(qty), multiplier="100")
+                        fee = f"{OPTION_FEE * qty:.2f}"
+                        ledger.append(_row(**common, event_id=f"{tid}-E", kind="entry", occurred_at=at, quote_time=at,
+                                           side="buy", price=f"{fill:.2f}", ref_price=f"{fill:.2f}", fees=fee,
+                                           source=f"{source};{tag}"))
+                        ledger.append(_row(**common, event_id=f"{tid}-S", kind="stop_set", occurred_at=at, side="sell",
+                                           price=f"{stop:.2f}", source=f"{source};STOP_MINUS_15PCT_CEIL"))
+                        found = option_exit(series[(pick["expiry"], pick["strike"])], d["time"], fill, stop, und)
+                        exit_at = found[0]["start"] if found else None
+                        if found:
+                            xbar, xprice, reason = found
+                            xat = xbar["start"].isoformat()
+                            ledger.append(_row(**common, event_id=f"{tid}-X", kind="exit", occurred_at=xat, quote_time=xat,
+                                               side="sell", price=f"{xprice:.2f}", ref_price=f"{xprice:.2f}", fees=fee,
+                                               source=f"{source};RH_OPT_5M;SELL_BAR_LOW;{reason}"))
+                            d[f"realistic_{arm_letter.lower()}"] = _realistic(pick["entry_bar"], xbar, qty)
+                        d[f"arm_{arm_letter.lower()}"] = "OPTION"
+                    else:
+                        fill = round(ref * 1.0005, 4)
+                        qty = math.floor(size / fill * 1e6) / 1e6
+                        stop = stop_price(fill)
+                        common.update(instrument="equity", qty=f"{qty:.6f}", multiplier="1")
+                        ledger.append(_row(**common, event_id=f"{tid}-E", kind="entry", occurred_at=at, quote_time=at,
+                                           side="buy", price=f"{fill:.4f}", ref_price=f"{ref:.4f}", fees="0",
+                                           source=f"{source};{d['trigger']}"))
+                        ledger.append(_row(**common, event_id=f"{tid}-S", kind="stop_set", occurred_at=at, side="sell",
+                                           price=f"{stop:.2f}", source=f"{source};STOP_20PCT"))
+                        found = exit_for(sym, s, entry_i, ref, fill, stop, earnings)
+                        exit_at = s.bars[found[0]]["start"] if found else None
+                        reason = found[1] if found else None
+                        if found:
+                            xref = s.bars[found[0]]["o"]
+                            xat = exit_at.isoformat()
+                            ledger.append(_row(**common, event_id=f"{tid}-X", kind="exit", occurred_at=xat, quote_time=xat,
+                                               side="sell", price=f"{xref * 0.9995:.4f}", ref_price=f"{xref:.4f}", fees="0",
+                                               source=f"{source};{reason}"))
+                        d["arm_b"] = "STOCK"
+                    trades[arm_letter].append((d["time"], exit_at, size))
+                    entered.append(tid)
+                    d[f"exit_{arm_letter.lower()}"] = reason if found else "UNRESOLVED"
+                    for name in CRITERIA:
+                        points, value = d["parts"][name]
+                        parts.append({"decision_id": d["decision_id"], "trade_id": tid, "arm": arm, "criterion": name,
+                                      "points": points, "value": value})
+                if not entered:
+                    d["action"] = "SKIP"
+                    continue
+                d.update(action="ENTER", trade_ids=entered)
+                if "exit_b" in d:  # kept for readers of the stock-arm fields
+                    d.update(trade_id=f"R2B-{sym}-{stamp}", exit=d["exit_b"])
     return ledger, parts, decisions, keys
 
 
@@ -373,6 +580,8 @@ def _decision_json(d):
     out["time"] = d["time"].isoformat()
     if "parts" in d:
         out["parts"] = {k: p for k, (p, _v) in d["parts"].items()}
+    if "option" in d and "expiry" in d["option"]:
+        out["option"] = dict(d["option"], expiry=d["option"]["expiry"].isoformat())
     return out
 
 
@@ -392,6 +601,8 @@ def main(argv=None):
     ap.add_argument("--bars", required=True)
     ap.add_argument("--daily", required=True)
     ap.add_argument("--days", required=True, action="append", type=date.fromisoformat)
+    ap.add_argument("--option-bars", help="call 5m bars CSV; turns on the option arms")
+    ap.add_argument("--chain", help="listed call strikes CSV (underlying, expiration, strike)")
     ap.add_argument("--events")
     ap.add_argument("--done", help="replay_sessions.csv; keys already replayed under R2 are skipped")
     ap.add_argument("--out", default=".")
@@ -406,7 +617,10 @@ def main(argv=None):
     if a.done and Path(a.done).exists():
         with open(a.done, newline="", encoding="utf-8") as fh:
             done = {r["key"] for r in csv.DictReader(fh)}
-    ledger, parts, decisions, keys = replay(load_bars(a.bars), load_daily(a.daily), a.days, earnings, macro, done, a.r2_hash)
+    option_bars = load_option_bars(a.option_bars) if a.option_bars else None
+    chain = load_chain(a.chain) if a.chain else None
+    ledger, parts, decisions, keys = replay(load_bars(a.bars), load_daily(a.daily), a.days, earnings, macro, done, a.r2_hash,
+                                            option_bars, chain)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     for name, fields, rows in (("replay_fills.csv", LEDGER_FIELDS, ledger), ("score_parts.csv", PARTS_FIELDS, parts),
@@ -418,7 +632,9 @@ def main(argv=None):
     (out / "decisions.json").write_text(json.dumps([_decision_json(d) for d in decisions], indent=1), encoding="utf-8")
     entered = [d for d in decisions if d.get("action") == "ENTER"]
     print(json.dumps({"sessions": len(keys), "decisions": len(decisions), "entries": len(entered),
-                      "unresolved": sum(d["exit"] == "UNRESOLVED" for d in entered),
+                      "unresolved": sum(v == "UNRESOLVED" for d in entered for k, v in d.items() if k.startswith("exit_")),
+                      "arm_a": dict(sorted(_count(d["arm_a"] for d in decisions if "arm_a" in d).items())),
+                      "arm_b": dict(sorted(_count(d["arm_b"] for d in decisions if "arm_b" in d).items())),
                       "skips": dict(sorted(_count(f for d in decisions for f in d["failed"]).items())),
                       "files": sorted(p.name for p in out.iterdir() if p.suffix in (".csv", ".json"))}, indent=1))
     return 0
