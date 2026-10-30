@@ -1,9 +1,9 @@
 {
  "account_usd": 10000.0,
- "availableAt": "2026-10-28",
+ "availableAt": "2026-10-29",
  "contractsAffordable": {
-  "as_of": "2026-10-28",
-  "atm_call_premium_usd": 1507.94,
+  "as_of": "2026-10-29",
+  "atm_call_premium_usd": 1529.12,
   "score_8": 0,
   "score_9_10": 0
  },
@@ -12,11 +12,11 @@
   "option_quote_delay_minutes": 15,
   "spy_per_spx": 0.1
  },
- "createdAt": "2026-10-29T20:36:50+00:00",
+ "createdAt": "2026-10-30T17:06:10+00:00",
  "historical": {
   "dataClass": "HISTORICAL_UNDERLYING_MODELED_OPTIONS",
   "missingData": {
-   "aligned_rows": 9270,
+   "aligned_rows": 9271,
    "gaps_over_4_days": 3,
    "longest_gap_days": 7
   },
@@ -24,17 +24,17 @@
    "call_above_sma200/liquid": {
     "holdout": {
      "exits": {
-      "stop": 754,
+      "stop": 755,
       "target": 338,
       "time": 68
      },
      "mean_ci95": [
-      -0.05255,
-      0.01448
+      -0.05418,
+      0.01539
      ],
-     "mean_net": -0.02522,
-     "n": 1160,
-     "win_rate": 0.3276
+     "mean_net": -0.02535,
+     "n": 1161,
+     "win_rate": 0.3273
     },
     "train": {
      "exits": {
@@ -43,8 +43,8 @@
       "time": 141
      },
      "mean_ci95": [
-      -0.03012,
-      0.00414
+      -0.03241,
+      0.00322
      ],
      "mean_net": -0.01239,
      "n": 4486,
@@ -57,8 +57,8 @@
       "time": 83
      },
      "mean_ci95": [
-      -0.03668,
-      0.03153
+      -0.03183,
+      0.03151
      ],
      "mean_net": -0.00237,
      "n": 1249,
@@ -68,17 +68,17 @@
    "call_above_sma200/stressed": {
     "holdout": {
      "exits": {
-      "stop": 901,
+      "stop": 902,
       "target": 206,
       "time": 53
      },
      "mean_ci95": [
-      -0.13705,
-      -0.08053
+      -0.13934,
+      -0.08127
      ],
-     "mean_net": -0.10845,
-     "n": 1160,
-     "win_rate": 0.2069
+     "mean_net": -0.1085,
+     "n": 1161,
+     "win_rate": 0.2067
     },
     "train": {
      "exits": {
@@ -87,8 +87,8 @@
       "time": 117
      },
      "mean_ci95": [
-      -0.13342,
-      -0.10516
+      -0.13356,
+      -0.10644
      ],
      "mean_net": -0.11857,
      "n": 4488,
@@ -101,8 +101,8 @@
       "time": 69
      },
      "mean_ci95": [
-      -0.124,
-      -0.06716
+      -0.12393,
+      -0.06735
      ],
      "mean_net": -0.0973,
      "n": 1252,
@@ -112,17 +112,17 @@
    "call_above_sma200/typical": {
     "holdout": {
      "exits": {
-      "stop": 765,
+      "stop": 766,
       "target": 321,
       "time": 74
      },
      "mean_ci95": [
-      -0.06373,
-      -0.00193
+      -0.06553,
+      -0.00044
      ],
-     "mean_net": -0.03445,
-     "n": 1160,
-     "win_rate": 0.3198
+     "mean_net": -0.03455,
+     "n": 1161,
+     "win_rate": 0.3196
     },
     "train": {
      "exits": {
@@ -131,8 +131,8 @@
       "time": 141
      },
      "mean_ci95": [
-      -0.05247,
-      -0.01857
+      -0.05014,
+      -0.02045
      ],
      "mean_net": -0.03424,
      "n": 4484,
@@ -145,8 +145,8 @@
       "time": 75
      },
      "mean_ci95": [
-      -0.04378,
-      0.02259
+      -0.04319,
+      0.02437
      ],
      "mean_net": -0.01413,
      "n": 1246,
@@ -156,17 +156,17 @@
    "call_above_sma200/wide": {
     "holdout": {
      "exits": {
-      "stop": 808,
+      "stop": 809,
       "target": 279,
       "time": 73
      },
      "mean_ci95": [
-      -0.09047,
-      -0.03227
+      -0.08985,
+      -0.03391
      ],
-     "mean_net": -0.06282,
-     "n": 1160,
-     "win_rate": 0.2802
+     "mean_net": -0.06299,
+     "n": 1161,
+     "win_rate": 0.2799
     },
     "train": {
      "exits": {
@@ -175,8 +175,8 @@
       "time": 132
      },
      "mean_ci95": [
-      -0.08309,
-      -0.05067
+      -0.08531,
+      -0.04931
      ],
      "mean_net": -0.0652,
      "n": 4485,
@@ -189,8 +189,8 @@
       "time": 77
      },
      "mean_ci95": [
-      -0.07105,
-      -0.00235
+      -0.0712,
+      -0.0027
      ],
      "mean_net": -0.0417,
      "n": 1248,
@@ -200,17 +200,17 @@
    "call_every_session/liquid": {
     "holdout": {
      "exits": {
-      "stop": 938,
+      "stop": 939,
       "target": 447,
       "time": 67
      },
      "mean_ci95": [
-      -0.04674,
-      0.01171
+      -0.04804,
+      0.01091
      ],
-     "mean_net": -0.01925,
-     "n": 1452,
-     "win_rate": 0.3368
+     "mean_net": -0.01936,
+     "n": 1453,
+     "win_rate": 0.3365
     },
     "train": {
      "exits": {
@@ -244,17 +244,17 @@
    "call_every_session/stressed": {
     "holdout": {
      "exits": {
-      "stop": 1119,
+      "stop": 1120,
       "target": 275,
       "time": 58
      },
      "mean_ci95": [
-      -0.13058,
-      -0.08598
+      -0.13124,
+      -0.08731
      ],
-     "mean_net": -0.10798,
-     "n": 1452,
-     "win_rate": 0.2169
+     "mean_net": -0.10801,
+     "n": 1453,
+     "win_rate": 0.2168
     },
     "train": {
      "exits": {
@@ -263,8 +263,8 @@
       "time": 164
      },
      "mean_ci95": [
-      -0.13549,
-      -0.11082
+      -0.13487,
+      -0.11212
      ],
      "mean_net": -0.12335,
      "n": 6295,
@@ -277,8 +277,8 @@
       "time": 75
      },
      "mean_ci95": [
-      -0.11769,
-      -0.05862
+      -0.11707,
+      -0.0653
      ],
      "mean_net": -0.09352,
      "n": 1505,
@@ -288,17 +288,17 @@
    "call_every_session/typical": {
     "holdout": {
      "exits": {
-      "stop": 954,
+      "stop": 955,
       "target": 421,
       "time": 77
      },
      "mean_ci95": [
-      -0.05689,
-      0.00148
+      -0.05823,
+      0.00133
      ],
-     "mean_net": -0.02957,
-     "n": 1452,
-     "win_rate": 0.323
+     "mean_net": -0.02965,
+     "n": 1453,
+     "win_rate": 0.3228
     },
     "train": {
      "exits": {
@@ -307,8 +307,8 @@
       "time": 145
      },
      "mean_ci95": [
-      -0.05175,
-      -0.02209
+      -0.0533,
+      -0.02331
      ],
      "mean_net": -0.03814,
      "n": 6293,
@@ -321,8 +321,8 @@
       "time": 80
      },
      "mean_ci95": [
-      -0.04016,
-      0.01495
+      -0.04045,
+      0.01622
      ],
      "mean_net": -0.01529,
      "n": 1503,
@@ -332,17 +332,17 @@
    "call_every_session/wide": {
     "holdout": {
      "exits": {
-      "stop": 1022,
+      "stop": 1023,
       "target": 364,
       "time": 66
      },
      "mean_ci95": [
-      -0.08702,
-      -0.03073
+      -0.08831,
+      -0.03333
      ],
-     "mean_net": -0.05971,
-     "n": 1452,
-     "win_rate": 0.2824
+     "mean_net": -0.05981,
+     "n": 1453,
+     "win_rate": 0.2822
     },
     "train": {
      "exits": {
@@ -351,8 +351,8 @@
       "time": 152
      },
      "mean_ci95": [
-      -0.08355,
-      -0.05717
+      -0.0856,
+      -0.0559
      ],
      "mean_net": -0.07134,
      "n": 6296,
@@ -365,8 +365,8 @@
       "time": 81
      },
      "mean_ci95": [
-      -0.0669,
-      -0.00601
+      -0.06552,
+      -0.00516
      ],
      "mean_net": -0.03959,
      "n": 1504,
@@ -443,194 +443,194 @@
   "pathsPerConfig": 625,
   "results": {
    "call_above_sma200/liquid/score_8": {
-    "max_drawdown_p50": 0.2835,
-    "p_drawdown_over_15pct": 0.9664,
-    "p_loss": 0.5056,
+    "max_drawdown_p50": 0.2849,
+    "p_drawdown_over_15pct": 0.96,
+    "p_loss": 0.5136,
     "paths": 625,
     "terminal_equity": {
-     "p05": 5793.07,
-     "p50": 9962.87,
-     "p95": 16479.31
+     "p05": 5964.19,
+     "p50": 9862.1,
+     "p95": 15772.22
     },
     "trade_draws": 62500
    },
    "call_above_sma200/liquid/score_9_10": {
     "max_drawdown_p50": 0.4087,
     "p_drawdown_over_15pct": 1.0,
-    "p_loss": 0.5296,
+    "p_loss": 0.544,
     "paths": 625,
     "terminal_equity": {
-     "p05": 4366.99,
-     "p50": 9506.38,
-     "p95": 20946.82
+     "p05": 4322.12,
+     "p50": 9457.86,
+     "p95": 21011.73
     },
     "trade_draws": 62500
    },
    "call_above_sma200/stressed/score_8": {
-    "max_drawdown_p50": 0.6697,
+    "max_drawdown_p50": 0.6671,
     "p_drawdown_over_15pct": 1.0,
-    "p_loss": 0.9984,
+    "p_loss": 1.0,
     "paths": 625,
     "terminal_equity": {
-     "p05": 2287.34,
-     "p50": 3456.53,
-     "p95": 5143.51
+     "p05": 2231.41,
+     "p50": 3519.56,
+     "p95": 5179.64
     },
     "trade_draws": 62500
    },
    "call_above_sma200/stressed/score_9_10": {
-    "max_drawdown_p50": 0.8291,
+    "max_drawdown_p50": 0.8292,
     "p_drawdown_over_15pct": 1.0,
     "p_loss": 1.0,
     "paths": 625,
     "terminal_equity": {
-     "p05": 1008.35,
-     "p50": 1821.01,
-     "p95": 3568.54
+     "p05": 992.08,
+     "p50": 1840.63,
+     "p95": 3515.75
     },
     "trade_draws": 62500
    },
    "call_above_sma200/typical/score_8": {
-    "max_drawdown_p50": 0.3588,
-    "p_drawdown_over_15pct": 0.9952,
-    "p_loss": 0.8,
+    "max_drawdown_p50": 0.3597,
+    "p_drawdown_over_15pct": 0.992,
+    "p_loss": 0.7776,
     "paths": 625,
     "terminal_equity": {
-     "p05": 4677.65,
-     "p50": 7871.33,
-     "p95": 12821.01
+     "p05": 4839.45,
+     "p50": 7836.59,
+     "p95": 12720.79
     },
     "trade_draws": 62500
    },
    "call_above_sma200/typical/score_9_10": {
-    "max_drawdown_p50": 0.4942,
-    "p_drawdown_over_15pct": 0.9984,
-    "p_loss": 0.816,
+    "max_drawdown_p50": 0.5017,
+    "p_drawdown_over_15pct": 0.9968,
+    "p_loss": 0.8208,
     "paths": 625,
     "terminal_equity": {
-     "p05": 3110.67,
-     "p50": 6788.79,
-     "p95": 15303.94
+     "p05": 3247.22,
+     "p50": 6657.26,
+     "p95": 14867.09
     },
     "trade_draws": 62500
    },
    "call_above_sma200/wide/score_8": {
-    "max_drawdown_p50": 0.3967,
-    "p_drawdown_over_15pct": 0.9872,
-    "p_loss": 0.824,
+    "max_drawdown_p50": 0.4026,
+    "p_drawdown_over_15pct": 0.9936,
+    "p_loss": 0.8288,
     "paths": 625,
     "terminal_equity": {
-     "p05": 4263.81,
-     "p50": 7266.22,
-     "p95": 12570.13
+     "p05": 4263.66,
+     "p50": 7366.16,
+     "p95": 12343.99
     },
     "trade_draws": 62500
    },
    "call_above_sma200/wide/score_9_10": {
-    "max_drawdown_p50": 0.5442,
+    "max_drawdown_p50": 0.5429,
     "p_drawdown_over_15pct": 1.0,
-    "p_loss": 0.8656,
+    "p_loss": 0.8752,
     "paths": 625,
     "terminal_equity": {
-     "p05": 2706.62,
-     "p50": 5924.37,
-     "p95": 12724.6
+     "p05": 2662.48,
+     "p50": 5961.9,
+     "p95": 13283.6
     },
     "trade_draws": 62500
    },
    "call_every_session/liquid/score_8": {
-    "max_drawdown_p50": 0.3359,
-    "p_drawdown_over_15pct": 0.9824,
-    "p_loss": 0.7104,
+    "max_drawdown_p50": 0.3341,
+    "p_drawdown_over_15pct": 0.984,
+    "p_loss": 0.7152,
     "paths": 625,
     "terminal_equity": {
-     "p05": 5136.28,
-     "p50": 8444.66,
-     "p95": 13991.4
+     "p05": 5137.6,
+     "p50": 8415.38,
+     "p95": 14045.48
     },
     "trade_draws": 62500
    },
    "call_every_session/liquid/score_9_10": {
-    "max_drawdown_p50": 0.478,
+    "max_drawdown_p50": 0.4756,
     "p_drawdown_over_15pct": 1.0,
-    "p_loss": 0.7504,
+    "p_loss": 0.744,
     "paths": 625,
     "terminal_equity": {
-     "p05": 3726.61,
-     "p50": 7320.1,
-     "p95": 16243.27
+     "p05": 3515.17,
+     "p50": 7310.6,
+     "p95": 16454.86
     },
     "trade_draws": 62500
    },
    "call_every_session/stressed/score_8": {
-    "max_drawdown_p50": 0.6162,
+    "max_drawdown_p50": 0.6175,
     "p_drawdown_over_15pct": 1.0,
     "p_loss": 1.0,
     "paths": 625,
     "terminal_equity": {
-     "p05": 2570.64,
-     "p50": 4083.32,
-     "p95": 6529.06
+     "p05": 2532.24,
+     "p50": 4068.09,
+     "p95": 6630.74
     },
     "trade_draws": 62500
    },
    "call_every_session/stressed/score_9_10": {
-    "max_drawdown_p50": 0.7826,
+    "max_drawdown_p50": 0.7806,
     "p_drawdown_over_15pct": 1.0,
     "p_loss": 1.0,
     "paths": 625,
     "terminal_equity": {
-     "p05": 1293.3,
-     "p50": 2395.73,
-     "p95": 4968.33
+     "p05": 1209.73,
+     "p50": 2428.47,
+     "p95": 4645.82
     },
     "trade_draws": 62500
    },
    "call_every_session/typical/score_8": {
-    "max_drawdown_p50": 0.3135,
+    "max_drawdown_p50": 0.317,
     "p_drawdown_over_15pct": 0.9808,
-    "p_loss": 0.6096,
+    "p_loss": 0.616,
     "paths": 625,
     "terminal_equity": {
-     "p05": 5267.2,
-     "p50": 9138.33,
-     "p95": 15519.15
+     "p05": 5491.91,
+     "p50": 9018.18,
+     "p95": 15535.22
     },
     "trade_draws": 62500
    },
    "call_every_session/typical/score_9_10": {
-    "max_drawdown_p50": 0.4375,
+    "max_drawdown_p50": 0.4353,
     "p_drawdown_over_15pct": 1.0,
-    "p_loss": 0.6432,
+    "p_loss": 0.6208,
     "paths": 625,
     "terminal_equity": {
-     "p05": 4298.42,
-     "p50": 8494.84,
-     "p95": 18312.73
+     "p05": 4133.11,
+     "p50": 8461.02,
+     "p95": 19051.18
     },
     "trade_draws": 62500
    },
    "call_every_session/wide/score_8": {
-    "max_drawdown_p50": 0.5281,
+    "max_drawdown_p50": 0.5173,
     "p_drawdown_over_15pct": 1.0,
-    "p_loss": 0.9792,
+    "p_loss": 0.9856,
     "paths": 625,
     "terminal_equity": {
-     "p05": 3232.66,
-     "p50": 5348.71,
-     "p95": 8752.56
+     "p05": 3228.15,
+     "p50": 5365.67,
+     "p95": 8566.62
     },
     "trade_draws": 62500
    },
    "call_every_session/wide/score_9_10": {
-    "max_drawdown_p50": 0.6959,
+    "max_drawdown_p50": 0.6944,
     "p_drawdown_over_15pct": 1.0,
-    "p_loss": 0.9888,
+    "p_loss": 0.9904,
     "paths": 625,
     "terminal_equity": {
-     "p05": 1698.11,
-     "p50": 3514.93,
-     "p95": 7713.81
+     "p05": 1751.07,
+     "p50": 3531.36,
+     "p95": 7308.78
     },
     "trade_draws": 62500
    }
