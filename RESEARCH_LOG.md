@@ -2,7 +2,7 @@
 
 Market and model data only. Option prices in the research runner are Black-Scholes values from the VIX close on S&P 500 history, not historical option quotes or any account's fills. Exits are checked at daily closes. Resampled outcomes are not new observations. Nothing here is a forecast, a measured live edge or advice, and no result changes a trading rule by itself.
 
-Records stored: 10; unique research runs: 5; paper-lab records: 9. Latest record session: 2026-10-29.
+Records stored: 11; unique research runs: 5; paper-lab records: 10. Latest record session: 2026-10-30.
 
 ## Latest research run (holdout split)
 
@@ -56,4 +56,4 @@ VIX 17.20, 20-day realized 10.16, VIX/RV20 1.69, VRP 7.04 vol points, VIX percen
 | 2026-10-27 | -6.0% | 29.0% | -7.6% | 43.1% | 18.39 | 8.47 |
 | 2026-10-28 | -6.0% | 29.0% | -7.6% | 43.1% | 17.52 | 7.40 |
 | 2026-10-29 | -6.0% | 29.0% | -7.6% | 43.1% | 16.91 | 6.81 |
-| 2026-10-29 | -6.1% | 28.9% | -7.5% | 43.1% | 17.20 | 7.04 |
+| 2026-10-30 | -6.1% | 28.9% | -7.5% | 43.1% | 17.20 | 7.04 |
