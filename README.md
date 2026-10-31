@@ -11,6 +11,10 @@ Raw URLs:
 - https://raw.githubusercontent.com/jaffershashimi/agentic-feed/main/feed/desk-feed.json
 - https://raw.githubusercontent.com/jaffershashimi/agentic-feed/main/feed/health.json
 
+## System state for scheduled runs
+
+How Agentic Lab runs today (roles, schedule, rules, pinned tools, how results are judged): [system/OPERATING_STATE.md](system/OPERATING_STATE.md). Rule texts: [system/rules/](system/rules/).
+
 ## What this repository never contains
 
 Account balances, positions, orders, broker identifiers, personal records, private site addresses, scheduler identifiers or secrets. `scripts/privacy_check.py` enforces a pattern guard in CI and before every publish. Free-tier API keys, when added, live only in Actions secrets.
