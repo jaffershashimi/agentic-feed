@@ -1,6 +1,6 @@
 # Agentic Lab operating state (public, no personal data)
 
-Updated 2026-10-31. This is the one public page a scheduled run can fetch to know how the system works today. The private hub is `jaffershashimi/Agentic-Lab`; this public repo holds the feed, the pinned tools and the rule texts. The former City app is retired and is not part of the system.
+Updated 2026-10-31. This is the one public page a scheduled run can fetch to know how the system works today. The private hub is `jaffershashimi/Agentic-Lab`; this public repo holds the feed, the pinned tools and the rule texts. The former City app and its repository were deleted on 2026-10-31.
 
 ## Roles
 
@@ -66,6 +66,11 @@ Docs: [REPLAY_R2](../docs/REPLAY_R2.md), [COMPARE_ARMS](../docs/COMPARE_ARMS.md)
 ## Go-live gate (all required, then the owner decides)
 
 4 clean weeks, 100+ closed paper trades, positive net after fees, profit factor 1.2 or more, drawdown within limits.
+
+## Adding data and what comes next
+
+- New APIs: follow [docs/ADDING_A_SOURCE.md](../docs/ADDING_A_SOURCE.md) (public feed vs private desk).
+- The plan to run the whole system 24/7 on a mini PC is in the private hub: `Agentic-Lab/system/07-engineering/BLUEPRINT_24-7.md`.
 
 ## Known issues (Oct 30)
 
