@@ -26,10 +26,14 @@ Updated 2026-10-31. This is the one public page a scheduled run can fetch to kno
 | 10:47 | Claude Midday | manage plus one scan, last entry 12:45 |
 | 12:41 | Claude Close | overnight decisions, ledger rows to Drive |
 | 13:23 | Claude Review and Replay Lab | R2 and R3 by the pinned engine, checker, score check, paired comparison |
+| 13:55 | ChatGPT Records Check | checks the day's Drive records, flags gaps |
 | 14:15 | Claude Daily Review | brief to the owner |
 | twice daily | ChatGPT Research Student | research notes in Drive |
 | Fri 13:30 | ChatGPT Weekly Scorecard | paper desk scorecard |
 | Sun 15:37 | Claude Research Scan | digest, one TEST ONLY experiment, resource center update |
+| Sun 16:00 | ChatGPT Week Ahead | earnings and macro dates for the coming week |
+
+Shared files live in the Google Drive folder "Agentic Lab Paper Desk" (ledger rows, handoffs, reviews, snapshots, records checks) and "Agentic Lab Research Library" (research notes). Nothing goes to the retired City.
 
 ## Rules in force
 
