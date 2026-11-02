@@ -62,3 +62,8 @@ R2 is frozen; where its words leave room, the engine reads them as follows. A di
 - A position still open at the last loaded bar is UNRESOLVED: no exit row.
 
 All tests use invented symbols and prices.
+
+
+## R4 (replay-only room filter test, 2026-11-02)
+
+`--rules R4` is R2 with filter F4 capped: the required room to resistance is the smaller of 2% and one daily ATR(14) as a fraction of price. Everything else is R2. Rule text: [system/rules/REPLAY_RULES_R4.md](../system/rules/REPLAY_RULES_R4.md).

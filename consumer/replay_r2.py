@@ -24,6 +24,9 @@ What R2 says, in short (the Drive doc "Replay Rules R2" is the source of truth):
 - R3 (--rules R3 --r2-hash <R3_HASH>): identical to R2 except the D3 score, which is context, room, risk,
   trend_1h_4h (1h close above EMA21 and 4h close above EMA20: 2 for both, 1 for one) and rel_volume (2 at 1.5+, 1 at
   1.0+). Arms REPLAY-A-R3-<SYM>, trade ids R3A-/R3B-, decision ids R3-..., session keys R3|YYYY-MM-DD|SYM.
+- R4 (--rules R4 --r2-hash <R4_HASH>): identical to R2 except filter F4, which needs room to resistance of at least
+  the smaller of 2% and one daily ATR(14) (true range of the prior 14 sessions, as a fraction of price). Approved
+  by the owner 2026-11-02 as a replay-only test; same naming pattern with R4.
 
 Without --option-bars, every entry records arm A as MISSING_DATA and arm B takes the stock, which is what R2
 section 6 prescribes when no option data exists. Each arm has its own p2 caps.
@@ -60,6 +63,7 @@ EARNINGS_EXIT_BAR = time(12, 50)  # its close triggers the exit at the 12:55 bar
 EQUITY, MAX_OPEN, MAX_ENTRIES, MAX_OPEN_SIZE = 5000.0, 3, 5, 3750.0
 FIVE = timedelta(minutes=5)
 CRITERIA = {"R2": ("context", "trigger", "liquidity", "room", "risk"),
+            "R4": ("context", "trigger", "liquidity", "room", "risk"),
             "R3": ("context", "room", "risk", "trend_1h_4h", "rel_volume")}
 LEDGER_FIELDS = COLUMNS + ("score", "source")
 PARTS_FIELDS = ("decision_id", "trade_id", "arm", "criterion", "points", "value")
@@ -202,6 +206,15 @@ def resistance(prior, price):
     return min(above) if above else None
 
 
+def daily_atr(prior, n=14):
+    """Average true range of the last n prior sessions, or None with too little history."""
+    if len(prior) < n + 1 or any("l" not in b for b in prior[-(n + 1):]):
+        return None
+    window = prior[-(n + 1):]
+    trs = [max(b["h"] - b["l"], abs(b["h"] - a["c"]), abs(b["l"] - a["c"])) for a, b in zip(window, window[1:])]
+    return sum(trs) / n
+
+
 def _next_sessions(day, count):
     out, d = [], day
     while len(out) < count:
@@ -241,14 +254,19 @@ def evaluate(sym, s, t, earnings, macro, rules="R2"):
         failed.append("F2_PRICE")
     if len(closes) < 221 or closes[-1] <= sma_now:
         failed.append("F3_TREND")
-    if level is not None and (level - price) / price < 0.02 - EPS:
+    min_room = 0.02
+    if rules == "R4":  # R4: the 2% room is capped at one daily ATR, so quiet stocks are not blocked by a fixed number
+        datr = daily_atr(prior)
+        if datr:
+            min_room = min(0.02, datr / price)
+    if level is not None and (level - price) / price < min_room - EPS:
         failed.append("F4_ROOM")
     if z is None or not -0.5 - EPS <= z <= 2.5 + EPS:
         failed.append("F5_EXTENDED")
     if (sym, day, "pm") in earnings:
         failed.append("F6_EARNINGS")
     out = {"symbol": sym, "time": t, "day": day, "trigger": trigger, "price": price, "failed": failed,
-           "values": {"adv20": adv20, "vwap": vwap, "atr": atr, "z": z, "resistance": level}}
+           "values": {"adv20": adv20, "vwap": vwap, "atr": atr, "z": z, "resistance": level, "min_room": min_room}}
     if failed:
         return out
     ema20_prior = s.daily_ema20[len(prior) - 1]
@@ -619,8 +637,8 @@ def main(argv=None):
     ap.add_argument("--done", help="replay_sessions.csv (key or session_key column); keys already replayed are skipped")
     ap.add_argument("--out", default=".")
     ap.add_argument("--r2-hash", default=R2_HASH, help="rules hash for the source column (the R3_HASH with --rules R3)")
-    ap.add_argument("--rules", choices=("R2", "R3"), default="R2",
-                    help="R3 = R2 with the R3 score (context, room, risk, trend_1h_4h, rel_volume)")
+    ap.add_argument("--rules", choices=("R2", "R3", "R4"), default="R2",
+                    help="R3 = R2 with the R3 score; R4 = R2 with the ATR-capped room filter F4")
     a = ap.parse_args(argv)
     try:
         earnings, macro = load_events(a.events)
