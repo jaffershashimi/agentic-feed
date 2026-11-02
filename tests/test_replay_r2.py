@@ -155,6 +155,20 @@ class ReplayR2Tests(unittest.TestCase):
         self.assertEqual(entry["score"], str(sum(got.values())))
         self.assertEqual(decisions[0]["score"], sum(got.values()))
 
+    def test_r4_caps_the_room_filter_at_one_daily_atr(self):
+        bars, daily, level = market()
+        for d in daily["DEMO"]:
+            d["h"], d["l"] = d["c"] * 1.003, d["c"] * 0.997  # daily ATR about 0.6% of price
+        daily["DEMO"][-1]["h"] = level * 1.01  # resistance 1% above: fails R2's 2% room, passes R4's ATR cap
+        _l, _p, decisions, _k = replay(bars, daily, [DAY])
+        self.assertIn("F4_ROOM", decisions[0]["failed"])
+        ledger, _p, decisions, keys = replay(bars, daily, [DAY], rules="R4", r2_hash="r4hash000000")
+        self.assertEqual(keys, ["R4|2026-11-10|DEMO"])
+        self.assertNotIn("F4_ROOM", decisions[0]["failed"])
+        self.assertLess(decisions[0]["values"]["min_room"], 0.01)
+        (entry,) = rows_of(ledger, "entry")
+        self.assertEqual(entry["arm"], "REPLAY-B-R4-DEMO")
+
     def test_stop_rounds_up_and_derived_windows(self):
         self.assertEqual(stop_price(100.0), 80.0)
         self.assertEqual(stop_price(10.006), 8.01)

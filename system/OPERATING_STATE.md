@@ -42,6 +42,7 @@ Shared files live in the Google Drive folder "Agentic Lab Paper Desk" (ledger ro
 | Paper policy p2 | [rules/PAPER_POLICY_P2.md](rules/PAPER_POLICY_P2.md) | 8782fd93fbd2 | PAPER entries and limits |
 | Replay rules R2 | [rules/REPLAY_RULES_R2.md](rules/REPLAY_RULES_R2.md) | c879c06e24a5 | PAPER and REPLAY |
 | Replay rules R3 | [rules/REPLAY_RULES_R3.md](rules/REPLAY_RULES_R3.md) | set when frozen | REPLAY only (score test) |
+| Replay rules R4 | [rules/REPLAY_RULES_R4.md](rules/REPLAY_RULES_R4.md) | set when frozen | REPLAY only (ATR-capped room filter test, from Nov 2) |
 
 These are copies for reference; the running desk reads its own frozen copies, and a hash mismatch means the copy here is out of date.
 
