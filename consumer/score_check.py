@@ -12,10 +12,16 @@ Reads the same fills CSV as paper_ledger.py, with an extra `score` column on ent
 Verdict: insufficient_evidence (too few trades or sessions), ranks (interval above zero), inverted (interval below
 zero) or no_rank_evidence. A verdict describes this ledger only; it is not a trading edge and changes no rule.
 
+With --parts score_parts.csv (columns decision_id or trade_id, criterion or component, points, optional mode) it also
+reports a read-only component table: for each criterion, rows, distinct decisions, counts by points value and
+`invariant` (true when the criterion took one value only, so it shifts every total equally and adds no ordering).
+Rows whose mode differs from --mode are left out. The table changes no score and no rule.
+
     python3 -I consumer/score_check.py fills.csv [--mode REPLAY] [--buckets 6,7,8,9-10] [--min-trades 30]
-        [--min-sessions 10] [--resamples 2000] [--seed 7]
+        [--min-sessions 10] [--resamples 2000] [--seed 7] [--parts score_parts.csv]
 """
 import argparse
+import csv
 import json
 import math
 import random
@@ -159,6 +165,24 @@ def analyze(rows, mode="REPLAY", buckets="6,7,8,9-10", min_trades=30, min_sessio
     }
 
 
+def components(path, mode=None):
+    """Per-criterion counts by points value from a score_parts CSV; `invariant` marks a criterion with one value."""
+    table = defaultdict(lambda: {"rows": 0, "decisions": set(), "counts": defaultdict(int)})
+    with open(path, newline="", encoding="utf-8") as fh:
+        for r in csv.DictReader(fh):
+            if mode and (r.get("mode") or mode).strip().upper() != mode:
+                continue
+            name = (r.get("criterion") or r.get("component") or "").strip()
+            if not name:
+                continue
+            t = table[name]
+            t["rows"] += 1
+            t["decisions"].add((r.get("decision_id") or r.get("trade_id") or "").strip())
+            t["counts"][(r.get("points") or "").strip()] += 1
+    return {k: {"rows": v["rows"], "decisions": len(v["decisions"]), "counts": dict(sorted(v["counts"].items())),
+                "invariant": len(v["counts"]) <= 1} for k, v in sorted(table.items())}
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("path")
@@ -168,6 +192,7 @@ def main(argv=None):
     ap.add_argument("--min-sessions", type=int, default=10)
     ap.add_argument("--resamples", type=int, default=2000)
     ap.add_argument("--seed", type=int, default=7)
+    ap.add_argument("--parts", help="score_parts.csv for the read-only component table")
     a = ap.parse_args(argv)
     try:
         parse_buckets(a.buckets)
@@ -176,6 +201,8 @@ def main(argv=None):
         return 2
     rows, errors = load(a.path)
     out = analyze(rows, a.mode, a.buckets, a.min_trades, a.min_sessions, a.resamples, a.seed)
+    if a.parts:
+        out["components"] = components(a.parts, a.mode)
     out["errors"] = errors
     out["note"] = ("Returns are net of fees on closed trades only. Intervals resample whole entry sessions, so correlated "
                    "same-day trades count once per day. A verdict describes this ledger, not a future edge.")

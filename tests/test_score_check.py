@@ -7,7 +7,7 @@ import unittest
 from contextlib import redirect_stdout
 
 from consumer.paper_ledger import COLUMNS, load
-from consumer.score_check import analyze, main, parse_buckets, spearman
+from consumer.score_check import analyze, components, main, parse_buckets, spearman
 
 # Synthetic replay fills only: invented symbols, prices and ids.
 FIELDS = COLUMNS + ("score",)
@@ -120,6 +120,24 @@ class ScoreCheckTests(unittest.TestCase):
             with redirect_stdout(buf):
                 self.assertEqual(main([str(path), "--buckets", "9,8"]), 2)
 
+
+
+class ComponentTableTests(unittest.TestCase):
+    def test_invariant_and_mode_filter(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = pathlib.Path(tmp) / "parts.csv"
+            with open(path, "w", newline="") as fh:
+                w = csv.writer(fh)
+                w.writerow(["decision_id", "mode", "component", "points"])
+                for i, (trig, room) in enumerate([(1, 0), (1, 2), (1, 1)]):
+                    w.writerow([f"D{i}", "REPLAY", "trigger", trig])
+                    w.writerow([f"D{i}", "REPLAY", "room", room])
+                w.writerow(["P1", "PAPER", "trigger", 2])
+            table = components(path, "REPLAY")
+        self.assertTrue(table["trigger"]["invariant"])
+        self.assertEqual(table["trigger"]["decisions"], 3)
+        self.assertFalse(table["room"]["invariant"])
+        self.assertEqual(table["room"]["counts"], {"0": 1, "1": 1, "2": 1})
 
 if __name__ == "__main__":
     unittest.main()
