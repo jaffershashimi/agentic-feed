@@ -131,6 +131,19 @@ class BacktestTests(unittest.TestCase):
         self.assertLessEqual(lo, 3.75)
         self.assertGreaterEqual(hi, 3.75)
 
+    def test_market_filter_blocks_signals_in_a_downtrend(self):
+        bars = _uptrend(320)
+        down = [dict(b, c=300 - i, o=300 - i, h=301 - i, l=299 - i) for i, b in enumerate(bars)]
+        up = [dict(b) for b in bars]
+        plain = rd.backtest({"AAA": bars})[0]
+        self.assertTrue(plain)
+        self.assertEqual(rd.backtest({"AAA": bars, "MKT": up}, market="MKT")[0][0]["entry_day"], plain[0]["entry_day"])
+        blocked, skips, _ = rd.backtest({"AAA": bars, "MKT": down}, market="MKT")
+        self.assertEqual([t for t in blocked if t["symbol"] == "AAA"], [])
+        self.assertGreater(skips.get("MKT_BELOW_200D", 0), 0)
+        with self.assertRaises(ValueError):
+            rd.backtest({"AAA": bars}, market="SPY")
+
     def test_component_audit_flags_constant_criteria(self):
         rows = [{"context": 2, "trigger": 1, "liquidity": 2, "room": r, "risk": 1} for r in (0, 1, 2)]
         audit = rd.component_audit(rows)
