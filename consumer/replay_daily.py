@@ -25,10 +25,12 @@ RD1 rules (daily stand-ins for R2; same names so results line up with score_part
   low at or below the stop exits at the stop; high at or above the target exits at the target (stop first when both
   print in one session); after the close, close below EMA20 (stand-in for the 4h EMA20 rule) or the 5th session held
   exits at the next open. Every exit price x 0.9995. No next session = UNRESOLVED, excluded from the stats.
+- Optional market filter (--market SPY, variant RD1+MKT, TEST ONLY): a signal also needs close(S) of the market
+  symbol above its own 200-session SMA on day S. The market symbol's bars must be in the same daily.csv.
 - Not modeled: the fading-momentum rule, intraday VWAP, option arms, p2 portfolio caps across symbols.
 
     python3 -I -m consumer.replay_daily --daily daily.csv [--start 2023-11-01] [--end 2026-10-30]
-        [--events events.json] [--out DIR]
+        [--events events.json] [--market SPY] [--out DIR]
 
 daily.csv columns: symbol, begins_at, open, high, low, close, volume[, interpolated]. Writes trades_daily.csv and
 summary_daily.json: trades, net expectancy per trade with a seeded bootstrap 95% interval, profit factor, max
@@ -171,9 +173,23 @@ def run_exit(bars, e, fill, stop, target, e20):
     return None, None, "UNRESOLVED"
 
 
-def backtest(daily, start=None, end=None, earnings=None, macro=frozenset()):
-    """All RD1 trades across symbols, in signal order. Same inputs always give the same output."""
+def market_ok(bars):
+    """Days on which the market symbol closed above its 200-session SMA (needs 200 closes)."""
+    closes, ok = [b["c"] for b in bars], set()
+    for i in range(199, len(bars)):
+        if closes[i] > sum(closes[i - 199:i + 1]) / 200 + EPS:
+            ok.add(bars[i]["day"])
+    return ok
+
+
+def backtest(daily, start=None, end=None, earnings=None, macro=frozenset(), market=None):
+    """All RD1 trades across symbols, in signal order. Same inputs always give the same output.
+
+    market: symbol whose 200-day trend gates every signal (RD1+MKT); None keeps plain RD1."""
     trades, skips, candidates = [], defaultdict(int), []
+    if market is not None and market not in daily:
+        raise ValueError(f"market symbol {market} not in daily bars")
+    up_days = market_ok(daily[market]) if market else None
     for sym in sorted(daily):
         bars = daily[sym]
         closes = [b["c"] for b in bars]
@@ -188,6 +204,8 @@ def backtest(daily, start=None, end=None, earnings=None, macro=frozenset()):
             if got is None:
                 continue
             score, parts, failed = got
+            if up_days is not None and bars[s]["day"] not in up_days:
+                failed.append("MKT_BELOW_200D")
             for f in failed:
                 skips[f] += 1
             if failed:
@@ -249,7 +267,7 @@ def stats(trades):
     return out
 
 
-def summary(trades, skips, earnings_known, candidates=()):
+def summary(trades, skips, earnings_known, candidates=(), market=None):
     closed = sorted((t for t in trades if t["exit_reason"] != "UNRESOLVED"), key=lambda t: t["entry_day"])
     years = defaultdict(list)
     for t in closed:
@@ -259,7 +277,7 @@ def summary(trades, skips, earnings_known, candidates=()):
     flags = ["SURVIVORSHIP_BIAS"] + ([] if earnings_known else ["EARNINGS_UNKNOWN"])
     if len(closed) < 30:
         flags.append("UNDER_30_TRADES")
-    return {"data_class": DATA_CLASS, "rules": RULES, "note": "TEST ONLY. Daily stand-in for R2; never counts toward the go-live gate.",
+    return {"data_class": DATA_CLASS, "rules": RULES + ("+MKT" if market else ""), "market_filter": market, "note": "TEST ONLY. Daily stand-in for R2; never counts toward the go-live gate.",
             "flags": flags, "all": stats(trades), "first_half": stats(closed[:half]), "second_half": stats(closed[half:]),
             "by_year": {y: stats(ts) for y, ts in sorted(years.items())}, "skips": skips,
             "components": {"candidates": component_audit(candidates), "entries": component_audit(trades)}}
@@ -271,17 +289,22 @@ def main(argv=None):
     ap.add_argument("--start", type=date.fromisoformat)
     ap.add_argument("--end", type=date.fromisoformat)
     ap.add_argument("--events")
+    ap.add_argument("--market", help="market symbol for the 200-day trend gate (variant RD1+MKT)")
     ap.add_argument("--out", default=".")
     a = ap.parse_args(argv)
     earnings, macro = load_events(a.events)
-    trades, skips, candidates = backtest(load_daily(a.daily), a.start, a.end, earnings, macro)
+    try:
+        trades, skips, candidates = backtest(load_daily(a.daily), a.start, a.end, earnings, macro, a.market)
+    except ValueError as exc:
+        print(json.dumps({"errors": [str(exc)]}))
+        return 2
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     with open(out / "trades_daily.csv", "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=TRADE_FIELDS)
         w.writeheader()
         w.writerows(trades)
-    s = summary(trades, skips, earnings is not None, candidates)
+    s = summary(trades, skips, earnings is not None, candidates, a.market)
     (out / "summary_daily.json").write_text(json.dumps(s, indent=1), encoding="utf-8")
     print(json.dumps(s, indent=1))
     return 0
