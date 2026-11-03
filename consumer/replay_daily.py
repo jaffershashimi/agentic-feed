@@ -33,7 +33,13 @@ RD1 rules (daily stand-ins for R2; same names so results line up with score_part
 daily.csv columns: symbol, begins_at, open, high, low, close, volume[, interpolated]. Writes trades_daily.csv and
 summary_daily.json: trades, net expectancy per trade with a seeded bootstrap 95% interval, profit factor, max
 drawdown, worst trade, exit reasons, per-year and first-half/second-half splits (the same answer in both halves is
-the first sign an edge is not a fluke).
+the first sign an edge is not a fluke), and a component table per criterion (a criterion that never varies adds no
+ordering to the score).
+
+Data needs: split-adjusted bars from one provider (ATR and resistance compare prices across dates). The symbol list
+is chosen today, so the summary always carries SURVIVORSHIP_BIAS: delisted names are missing and results lean
+optimistic. ATR here is the simple mean of 14 true ranges (formula id SMA_TR14), the same as the R4 engine, not
+Wilder smoothing.
 """
 import argparse
 import csv
@@ -167,7 +173,7 @@ def run_exit(bars, e, fill, stop, target, e20):
 
 def backtest(daily, start=None, end=None, earnings=None, macro=frozenset()):
     """All RD1 trades across symbols, in signal order. Same inputs always give the same output."""
-    trades, skips = [], defaultdict(int)
+    trades, skips, candidates = [], defaultdict(int), []
     for sym in sorted(daily):
         bars = daily[sym]
         closes = [b["c"] for b in bars]
@@ -186,6 +192,7 @@ def backtest(daily, start=None, end=None, earnings=None, macro=frozenset()):
                 skips[f] += 1
             if failed:
                 continue
+            candidates.append(parts)
             if score < 6:
                 skips["SCORE_UNDER_6"] += 1
                 continue
@@ -201,7 +208,18 @@ def backtest(daily, start=None, end=None, earnings=None, macro=frozenset()):
                  "exit_reason": reason, "pnl": round(shares * (price - fill), 2) if price is not None else "", **parts}
             trades.append(t)
             free_from = x + 1 if x is not None else len(bars)
-    return trades, dict(sorted(skips.items()))
+    return trades, dict(sorted(skips.items())), candidates
+
+
+def component_audit(rows):
+    """Read-only per-criterion table: counts by value and whether the criterion never varies (adds no ordering)."""
+    out = {}
+    for c in CRITERIA:
+        counts = defaultdict(int)
+        for r in rows:
+            counts[r[c]] += 1
+        out[c] = {"counts": {str(k): v for k, v in sorted(counts.items())}, "invariant": len(counts) <= 1}
+    return out
 
 
 def _boot_ci(pnls, n_boot=2000, seed=7):
@@ -231,18 +249,20 @@ def stats(trades):
     return out
 
 
-def summary(trades, skips, earnings_known):
+def summary(trades, skips, earnings_known, candidates=()):
     closed = sorted((t for t in trades if t["exit_reason"] != "UNRESOLVED"), key=lambda t: t["entry_day"])
     years = defaultdict(list)
     for t in closed:
         years[t["entry_day"][:4]].append(t)
     half = len(closed) // 2
-    flags = [] if earnings_known else ["EARNINGS_UNKNOWN"]
+    # The symbol list is chosen today, so delisted and fallen names are missing: results lean optimistic.
+    flags = ["SURVIVORSHIP_BIAS"] + ([] if earnings_known else ["EARNINGS_UNKNOWN"])
     if len(closed) < 30:
         flags.append("UNDER_30_TRADES")
     return {"data_class": DATA_CLASS, "rules": RULES, "note": "TEST ONLY. Daily stand-in for R2; never counts toward the go-live gate.",
             "flags": flags, "all": stats(trades), "first_half": stats(closed[:half]), "second_half": stats(closed[half:]),
-            "by_year": {y: stats(ts) for y, ts in sorted(years.items())}, "skips": skips}
+            "by_year": {y: stats(ts) for y, ts in sorted(years.items())}, "skips": skips,
+            "components": {"candidates": component_audit(candidates), "entries": component_audit(trades)}}
 
 
 def main(argv=None):
@@ -254,14 +274,14 @@ def main(argv=None):
     ap.add_argument("--out", default=".")
     a = ap.parse_args(argv)
     earnings, macro = load_events(a.events)
-    trades, skips = backtest(load_daily(a.daily), a.start, a.end, earnings, macro)
+    trades, skips, candidates = backtest(load_daily(a.daily), a.start, a.end, earnings, macro)
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
     with open(out / "trades_daily.csv", "w", newline="", encoding="utf-8") as fh:
         w = csv.DictWriter(fh, fieldnames=TRADE_FIELDS)
         w.writeheader()
         w.writerows(trades)
-    s = summary(trades, skips, earnings is not None)
+    s = summary(trades, skips, earnings is not None, candidates)
     (out / "summary_daily.json").write_text(json.dumps(s, indent=1), encoding="utf-8")
     print(json.dumps(s, indent=1))
     return 0

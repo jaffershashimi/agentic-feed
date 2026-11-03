@@ -96,7 +96,7 @@ class ExitTests(unittest.TestCase):
 class BacktestTests(unittest.TestCase):
     def test_trades_are_deterministic_and_no_lookahead(self):
         bars = _uptrend(320)
-        trades, _ = rd.backtest({"AAA": bars})
+        trades, _ = rd.backtest({"AAA": bars})[:2]
         self.assertTrue(trades)
         self.assertEqual(trades, rd.backtest({"AAA": [dict(b) for b in bars]})[0])
         first = trades[0]
@@ -109,7 +109,7 @@ class BacktestTests(unittest.TestCase):
             self.assertEqual(first[k], again[k])
 
     def test_one_position_per_symbol_and_size_by_score(self):
-        trades, _ = rd.backtest({"AAA": _uptrend(320)})
+        trades, _, _ = rd.backtest({"AAA": _uptrend(320)})
         for a, b in zip(trades, trades[1:]):
             self.assertGreater(b["entry_day"], a["exit_day"])
         for t in trades:
@@ -131,6 +131,13 @@ class BacktestTests(unittest.TestCase):
         self.assertLessEqual(lo, 3.75)
         self.assertGreaterEqual(hi, 3.75)
 
+    def test_component_audit_flags_constant_criteria(self):
+        rows = [{"context": 2, "trigger": 1, "liquidity": 2, "room": r, "risk": 1} for r in (0, 1, 2)]
+        audit = rd.component_audit(rows)
+        self.assertTrue(audit["trigger"]["invariant"])
+        self.assertFalse(audit["room"]["invariant"])
+        self.assertEqual(audit["room"]["counts"], {"0": 1, "1": 1, "2": 1})
+
     def test_cli_writes_files_and_flags(self):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "daily.csv"
@@ -143,6 +150,8 @@ class BacktestTests(unittest.TestCase):
             s = json.loads((Path(tmp) / "summary_daily.json").read_text())
             self.assertEqual(s["data_class"], "REPLAY-DAILY")
             self.assertIn("EARNINGS_UNKNOWN", s["flags"])
+            self.assertIn("SURVIVORSHIP_BIAS", s["flags"])
+            self.assertTrue(s["components"]["entries"]["liquidity"]["invariant"])
             self.assertTrue((Path(tmp) / "trades_daily.csv").exists())
 
 
