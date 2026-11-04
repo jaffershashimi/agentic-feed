@@ -1,6 +1,6 @@
 {
  "core_ok": true,
- "generated_at": "2026-11-04T18:46:14+00:00",
+ "generated_at": "2026-11-04T21:29:49+00:00",
  "providers": [
   {
    "as_of": "2026-11-03",
@@ -12,7 +12,7 @@
    "url": "https://api.stlouisfed.org/fred/series/observations?series_id=BAMLH0A0HYM2&file_type=json&observation_start=2024-01-01"
   },
   {
-   "as_of": "2026-11-02",
+   "as_of": "2026-11-03",
    "error": null,
    "name": "DGS10",
    "ok": true,
@@ -21,7 +21,7 @@
    "url": "https://api.stlouisfed.org/fred/series/observations?series_id=DGS10&file_type=json&observation_start=2024-01-01"
   },
   {
-   "as_of": "2026-11-02",
+   "as_of": "2026-11-03",
    "error": null,
    "name": "DGS2",
    "ok": true,
@@ -112,5 +112,5 @@
   }
  ],
  "schema": "agentic-feed-health/1",
- "session": "2026-11-03"
+ "session": "2026-11-04"
 }
