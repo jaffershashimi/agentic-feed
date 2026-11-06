@@ -1,6 +1,6 @@
 # Agentic Lab operating state (public, no personal data)
 
-Updated 2026-11-03. This is the one public page a scheduled run can fetch to know how the system works today. The private hub is `jaffershashimi/Agentic-Lab`; this public repo holds the feed, the pinned tools and the rule texts. The former City app and its repository were deleted on 2026-10-31.
+Updated 2026-11-06. This is the one public page a scheduled run can fetch to know how the system works today. The private hub is `jaffershashimi/Agentic-Lab`; this public repo holds the feed, the pinned tools and the rule texts. The former City app and its repository were deleted on 2026-10-31.
 
 ## Roles
 
@@ -12,7 +12,8 @@ Updated 2026-11-03. This is the one public page a scheduled run can fetch to kno
 
 ## Current mode
 
-- Paper trading only, stocks first. Options are tested in paper and replay only, until stock paper results prove an edge.
+- Paper trading only, **stocks only** (owner, Nov 4): no option or spread entries in either paper arm until the owner approves. An option position already open is still managed and exited.
+- The replay lab is stock only (owner, Nov 2). Options come back only after stock results prove an edge.
 - Manual SPY 0DTE trading is stopped.
 - Every new strategy idea is TEST ONLY: replay first, then a paired holdout test, then the owner decides.
 
@@ -35,6 +36,12 @@ Updated 2026-11-03. This is the one public page a scheduled run can fetch to kno
 
 All paper desk runs use Sonnet with a short-thinking instruction (from Nov 3; Haiku skipped required screen steps). A paper desk exception in the project file `claude/AGENTIC_SLOWDOWN.md` (Nov 3) lets the paper desk, the 2:15 review and the Sunday scan run; live trading and the old live desk stay paused. Owner approvals live in an OWNER APPROVALS section of the desk STATE file so runs do not ask twice.
 
+Run safety lines (owner, Nov 4), at the top of the prompts:
+
+- **Ledger safety (all 6 paper runs):** before writing the ledger, re-read the project copy and confirm its row count and hash still match the copy loaded; otherwise stop. Never write a ledger rebuilt from an older copy. Added after a Nov 3 project chat overwrote the ledger from a stale copy (363 replay rows lost, then restored byte for byte from the 1:23 run).
+- **Stocks only (6:52, hourly, 8:47, 10:47):** new PAPER entries are equity only.
+- **Merge first (1:23):** pending replay_sessions and variant_tags files are merged before replay, so no session is replayed twice.
+
 Shared files live in the Google Drive folder "Agentic Lab Paper Desk" (ledger rows, handoffs, reviews, snapshots, records checks) and "Agentic Lab Research Library" (research notes). Nothing goes to the retired City.
 
 ## Rules in force
@@ -43,8 +50,8 @@ Shared files live in the Google Drive folder "Agentic Lab Paper Desk" (ledger ro
 |---|---|---|---|
 | Paper policy p2 | [rules/PAPER_POLICY_P2.md](rules/PAPER_POLICY_P2.md) | 8782fd93fbd2 | PAPER entries and limits |
 | Replay rules R2 | [rules/REPLAY_RULES_R2.md](rules/REPLAY_RULES_R2.md) | c879c06e24a5 | PAPER and REPLAY |
-| Replay rules R3 | [rules/REPLAY_RULES_R3.md](rules/REPLAY_RULES_R3.md) | set when frozen | REPLAY only (score test) |
-| Replay rules R4 | [rules/REPLAY_RULES_R4.md](rules/REPLAY_RULES_R4.md) | set when frozen | REPLAY only (ATR-capped room filter test, from Nov 2) |
+| Replay rules R3 | [rules/REPLAY_RULES_R3.md](rules/REPLAY_RULES_R3.md) | 41bb2a04a713 (desk copy, frozen Nov 3) | REPLAY only (score test) |
+| Replay rules R4 | [rules/REPLAY_RULES_R4.md](rules/REPLAY_RULES_R4.md) | 4c7efc364cca (desk copy, frozen Nov 3) | REPLAY only (ATR-capped room filter test, from Nov 2) |
 
 R4 measurement note: "daily ATR(14)" in the engine is the simple mean of the last 14 true ranges (formula id SMA_TR14), not Wilder smoothing; charting tools that use Wilder ATR will disagree near the threshold. ATR and resistance must come from the same split-adjusted bars.
 
@@ -78,9 +85,26 @@ Docs: [REPLAY_R2](../docs/REPLAY_R2.md), [COMPARE_ARMS](../docs/COMPARE_ARMS.md)
 - New APIs: follow [docs/ADDING_A_SOURCE.md](../docs/ADDING_A_SOURCE.md) (public feed vs private desk).
 - The plan to run the whole system 24/7 on a mini PC is in the private hub: `Agentic-Lab/system/07-engineering/BLUEPRINT_24-7.md`.
 
-## Known issues (Nov 3)
+## Data sources
 
-- Nov 2 (first holdout day) recorded nothing: the paper desk was paused by the slowdown file. Fixed Nov 3.
-- The 1:23 lab on Nov 2 ran pass 1 only; R3 and R4 rule files were not yet frozen. Next run freezes them first.
-- The 12:41 close cannot always run the checker on the full ledger from its sandbox (CHECKER_NOT_RUN); the review reports it.
-- REPLAY-DAILY results lean optimistic (symbol list chosen today, survivorship bias) and never count toward the go-live gate.
+| Source | Use |
+|---|---|
+| Robinhood (market data tools only) | Reference quotes for paper fills, 5-minute and daily bars, earnings calendar |
+| TradingView | Fallback quotes, alerts for paper stops and targets |
+| Twelve Data, Alpha Vantage, FMP | Cross-check quotes and calendars |
+| FlashAlpha, TipRanks | Removed Nov 3 (free plans blocked or nearly empty) |
+| Alpaca (planned) | Free paper account and market data for the replay archive and a future rule-following paper bot. Paper keys only, stored as environment secrets, never in a repo. |
+
+## Results so far (Nov 5, descriptive)
+
+- PAPER: 7 closed trades. Arm A -$132.72, Arm B -$145.50. Two option trades (AMZN calls, Nov 4) caused most of it; paper is stocks only since.
+- REPLAY R2 stock: +$2.94 per trade on Oct 20 to 26 (development), -$6.21 per trade on Oct 28 to Nov 5 (57 closed, interval below zero). R3 -$10.25. R4 matches R2.
+- Score check: the R2 score does not rank outcomes (Spearman about +0.09). Paired R2 vs R3 and R2 vs R4: insufficient_evidence (holdout 21 pairs, 4 sessions).
+
+## Known issues (Nov 6)
+
+- R4 never differs from R2 on this watchlist: daily ATR(14) over price is at least 2% for every name, so the min(2%, ATR) cap never binds.
+- The engine does not see positions still open in the ledger from earlier days, so the 1:23 lab sometimes withholds entries by hand (CAP_D4) to keep the 3-open limit. Fix planned in replay_r2.py, then a new pin.
+- Many R2 replay trades exit the same day on the 4h close under EMA20; whether that exit cuts winners is an open question (replay-only check after the first REPLAY-DAILY run).
+- IONQ earnings date disagreed between calendars (Nov 4 vs Nov 5 after close).
+- REPLAY-DAILY results lean optimistic (symbol list chosen today, survivorship bias) and never count toward the go-live gate. First run: Fri Nov 6, plain RD1 and RD1+MKT.
