@@ -1,6 +1,6 @@
 {
  "core_ok": true,
- "generated_at": "2026-11-06T18:15:01+00:00",
+ "generated_at": "2026-11-06T21:04:24+00:00",
  "providers": [
   {
    "as_of": "2026-11-05",
@@ -112,5 +112,5 @@
   }
  ],
  "schema": "agentic-feed-health/1",
- "session": "2026-11-05"
+ "session": "2026-11-06"
 }
