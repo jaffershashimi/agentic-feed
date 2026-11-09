@@ -73,7 +73,11 @@ class LabTests(unittest.TestCase):
         self.assertEqual(json.dumps(a, sort_keys=True), json.dumps(b, sort_keys=True))
         self.assertEqual(ta, tb)
         for name in lab.STRATEGIES:
-            self.assertEqual(a["results"][name]["all"]["curve"]["start_equity"], 1000.0)
+            start = a["results"][name]["all"]["curve"]["start_equity"]
+            if name == "PB1S":  # parked in the benchmark from the first open, marked at the first close
+                self.assertAlmostEqual(start, 1000.0, delta=50)
+            else:
+                self.assertEqual(start, 1000.0)
 
     def test_pb1_trades_obey_rules(self):
         _, trades = lab.run_all(self.daily)
@@ -93,7 +97,7 @@ class LabTests(unittest.TestCase):
         d = self.daily
         d["MKT"] = [dict(b, c=1000 - i, o=1000 - i, h=1001 - i, l=999 - i) for i, b in enumerate(d["SPY"])]
         s, trades = lab.run_all(d, market="MKT")
-        for name in ("PB1", "PB1I", "OPT1", "MR1"):
+        for name in ("PB1", "PB1S", "PB1I", "OPT1", "MR1"):
             self.assertEqual([t for t in trades if t["strategy"] == name], [], name)
         with self.assertRaises(ValueError):
             lab.run_all(self.daily, market="NOPE")
@@ -103,6 +107,12 @@ class LabTests(unittest.TestCase):
         d["TLT"] = [dict(b, c=200 - i * 0.1, o=200 - i * 0.1, h=200.5 - i * 0.1, l=199.5 - i * 0.1) for i, b in enumerate(d["TLT"])]
         _, trades = lab.run_all(d)
         self.assertFalse([t for t in trades if t["strategy"] == "TF1" and t["symbol"] == "TLT"])
+
+    def test_pb1s_parks_idle_cash(self):
+        s, trades = lab.run_all(self.daily)
+        pb, pbs = s["results"]["PB1"]["all"], s["results"]["PB1S"]["all"]
+        self.assertEqual(pb["trades"]["trades"], pbs["trades"]["trades"])
+        self.assertNotEqual(pb["curve"]["end_equity"], pbs["curve"]["end_equity"])
 
     def test_verdict_rules(self):
         bench = {"curve": {"sharpe": 1.0}, "trades": {}}

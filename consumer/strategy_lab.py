@@ -18,6 +18,8 @@ Strategies (rules frozen here; change them only with a new id):
         open (lowest RSI first, at most 3 positions, each a third of equity at that close). Exit at the next open
         after a close above the 5-session SMA or after 10 sessions held; a stop 8% under the fill exits during the
         session (at the open if it gaps below).
+- PB1S  PB1 with idle cash parked in the benchmark: cash not used by PB1 positions is held in the benchmark, sold at
+        the open to fund a PB1 entry and bought back at the open after an exit (costs on every fill).
 - PB1I  Same as PB1 with internal bar strength (close - low) / (high - low) below 0.2 instead of RSI.
 - OPT1  SYNTHETIC option proxy on PB1 signals: buy a 35-day at-the-money call priced by Black-Scholes with implied
         vol = 1.2 x the 20-session realized vol (floor 15%), 3% worse than model on entry and exit, 10% of equity per
@@ -46,7 +48,7 @@ from consumer.replay_daily import load_daily
 EPS = 1e-9
 COST = 0.0005
 TF_UNIVERSE = ("SPY", "QQQ", "TLT", "GLD", "DBC")
-STRATEGIES = ("BH", "TF1", "MR1", "PB1", "PB1I", "OPT1")
+STRATEGIES = ("BH", "TF1", "MR1", "PB1", "PB1S", "PB1I", "OPT1")
 TRADE_FIELDS = ("strategy", "symbol", "entry_day", "exit_day", "entry", "exit", "ret", "pnl", "reason")
 
 
@@ -217,9 +219,10 @@ def mr1_targets(universe):
     return fn
 
 
-def signal_sim(f, name, universe, cash0, lo, hi, gate=None, ibs=False, option=False):
+def signal_sim(f, name, universe, cash0, lo, hi, gate=None, ibs=False, option=False, park=None):
     """PB1, PB1I and OPT1: next-open entries, up to 3 positions."""
     cash, pos, trades, curve, pending = cash0, {}, [], [], []
+    parked = 0.0  # benchmark shares held with idle cash (PB1S)
     exits = set()
 
     def close_pos(s, i, px, reason):
@@ -244,7 +247,11 @@ def signal_sim(f, name, universe, cash0, lo, hi, gate=None, ibs=False, option=Fa
             if s in pos and f.ok(s, i):
                 close_pos(s, i, f.bar[s][i]["o"], pos[s]["why"])
         exits = set()
-        eq_prev = _equity_sig(cash, pos, f, i - 1, option)
+        eq_prev = _equity_sig(cash, pos, f, i - 1, option) + (parked * f.close[park][i - 1] if park else 0.0)
+        if park and parked and pending and f.ok(park, i):
+            px = f.bar[park][i]["o"]
+            cash += parked * px * (1 - COST)
+            parked = 0.0
         for s in pending:
             if len(pos) >= 3 or s in pos or not f.ok(s, i):
                 continue
@@ -261,6 +268,10 @@ def signal_sim(f, name, universe, cash0, lo, hi, gate=None, ibs=False, option=Fa
                 cash -= n * fill
                 pos[s] = {"i": i, "fill": fill, "n": n, "stop": fill * 0.92}
         pending = []
+        if park and cash > 1.0 and f.ok(park, i):
+            px = f.bar[park][i]["o"]
+            parked += cash / (px * (1 + COST))
+            cash = 0.0
         for s in sorted(pos):
             b, p = f.bar[s][i], pos[s]
             if b is None or p["stop"] is None:
@@ -278,7 +289,7 @@ def signal_sim(f, name, universe, cash0, lo, hi, gate=None, ibs=False, option=Fa
             elif i - p["i"] + 1 >= 10:
                 p["why"] = "EXIT_TIME_10D"
                 exits.add(s)
-        curve.append((f.days[i], _equity_sig(cash, pos, f, i, option)))
+        curve.append((f.days[i], _equity_sig(cash, pos, f, i, option) + (parked * f.close[park][i] if park else 0.0)))
         if i < hi and (gate is None or gate(i)):
             cands = []
             for s in universe:
@@ -395,6 +406,7 @@ def run_all(daily, start=None, end=None, benchmark="SPY", market=None, cash=1000
             "TF1": lambda: weight_sim(f, "TF1", tf1_targets(tf_u), cash, lo, hi),
             "MR1": lambda: weight_sim(f, "MR1", mr1_targets(stock_universe), cash, lo, hi, gate),
             "PB1": lambda: signal_sim(f, "PB1", stock_universe, cash, lo, hi, gate),
+            "PB1S": lambda: signal_sim(f, "PB1S", stock_universe, cash, lo, hi, gate, park=benchmark),
             "PB1I": lambda: signal_sim(f, "PB1I", stock_universe, cash, lo, hi, gate, ibs=True),
             "OPT1": lambda: signal_sim(f, "OPT1", stock_universe, cash, lo, hi, gate, option=True)}
     results, all_trades = {}, []
