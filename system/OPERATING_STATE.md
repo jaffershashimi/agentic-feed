@@ -1,6 +1,6 @@
 # Agentic Lab operating state (public, no personal data)
 
-Updated 2026-11-06. This is the one public page a scheduled run can fetch to know how the system works today. The private hub is `jaffershashimi/Agentic-Lab`; this public repo holds the feed, the pinned tools and the rule texts. The former City app and its repository were deleted on 2026-10-31.
+Updated 2026-11-10. This is the one public page a scheduled run can fetch to know how the system works today. The private hub is `jaffershashimi/Agentic-Lab`; this public repo holds the feed, the pinned tools and the rule texts. The former City app and its repository were deleted on 2026-10-31.
 
 ## Roles
 
@@ -40,7 +40,7 @@ Run safety lines (owner, Nov 4), at the top of the prompts:
 
 - **Ledger safety (all 6 paper runs):** before writing the ledger, re-read the project copy and confirm its row count and hash still match the copy loaded; otherwise stop. Never write a ledger rebuilt from an older copy. Added after a Nov 3 project chat overwrote the ledger from a stale copy (363 replay rows lost, then restored byte for byte from the 1:23 run).
 - **Stocks only (6:52, hourly, 8:47, 10:47):** new PAPER entries are equity only.
-- **Merge first (1:23):** pending replay_sessions and variant_tags files are merged before replay, so no session is replayed twice.
+- **Merge first (1:23):** pending replay_sessions and variant_tags files are merged before replay, so no session is replayed twice. Fallback (Nov 9): if a main file cannot be rewritten from a local copy, leave it alone, write new keys and tags as per-day files in `claude/paper/pending/`, and read main plus all pending files as one set.
 
 Shared files live in the Google Drive folder "Agentic Lab Paper Desk" (ledger rows, handoffs, reviews, snapshots, records checks) and "Agentic Lab Research Library" (research notes). Nothing goes to the retired City.
 
@@ -95,16 +95,26 @@ Docs: [REPLAY_R2](../docs/REPLAY_R2.md), [COMPARE_ARMS](../docs/COMPARE_ARMS.md)
 | FlashAlpha, TipRanks | Removed Nov 3 (free plans blocked or nearly empty) |
 | Alpaca (planned) | Free paper account and market data for the replay archive and a future rule-following paper bot. Paper keys only, stored as environment secrets, never in a repo. |
 
-## Results so far (Nov 5, descriptive)
+## Results so far (Nov 9, descriptive; Nov 9 review in Drive)
+
+- PAPER (stocks only since Nov 4): Arm A -$19.59 per closed trade (7 closed), Arm B -$14.99 (10 closed). Equity after Nov 9: A $4,850.16, B $4,837.43 (start $5,000).
+- REPLAY R2 stock: development Oct 20 to 26 +$2.94 per trade (45); Oct 28 to Nov 9 -$4.90 per trade (70 closed, interval -7.8 to -2.1). R3 -$10.25 (27). R4 -$5.11 (73), same decisions as R2 on this watchlist. Holdout paired tests: 6 sessions, insufficient_evidence.
+- The one-time close-out of 55 legacy unresolved replay trades was done Nov 9 (zero-P&L rows, excluded from statistics). Replay ledger now 1,657 rows.
+- Pre-registered Nov 22 decision rules: see the private hub `system/04-results/nov22-decision-rules-2026-11-09.md`.
+
+### Earlier (Nov 5)
 
 - PAPER: 7 closed trades. Arm A -$132.72, Arm B -$145.50. Two option trades (AMZN calls, Nov 4) caused most of it; paper is stocks only since.
 - REPLAY R2 stock: +$2.94 per trade on Oct 20 to 26 (development), -$6.21 per trade on Oct 28 to Nov 5 (57 closed, interval below zero). R3 -$10.25. R4 matches R2.
 - Score check: the R2 score does not rank outcomes (Spearman about +0.09). Paired R2 vs R3 and R2 vs R4: insufficient_evidence (holdout 21 pairs, 4 sessions).
 
-## Known issues (Nov 6)
+## Known issues (Nov 10)
 
 - R4 never differs from R2 on this watchlist: daily ATR(14) over price is at least 2% for every name, so the min(2%, ATR) cap never binds.
-- The engine does not see positions still open in the ledger from earlier days, so the 1:23 lab sometimes withholds entries by hand (CAP_D4) to keep the 3-open limit. Fix planned in replay_r2.py, then a new pin.
+- The engine does not see positions still open in the ledger from earlier days, so the 1:23 lab sometimes withholds entries by hand (CAP_D4) to keep the 3-open limit. Fix planned in replay_r2.py, then a new pin. (The Nov 9 close-out removed the legacy cases; the gap remains for new multi-day holds.)
 - Many R2 replay trades exit the same day on the 4h close under EMA20; whether that exit cuts winners is an open question (replay-only check after the first REPLAY-DAILY run).
 - IONQ earnings date disagreed between calendars (Nov 4 vs Nov 5 after close).
 - REPLAY-DAILY results lean optimistic (symbol list chosen today, survivorship bias) and never count toward the go-live gate. First run: Fri Nov 6, plain RD1 and RD1+MKT.
+- Paper run and engine score the same bar differently (Nov 9: AMZN 9 vs 8, SPY 7 vs 6, PLTR 8 vs 7); cause not investigated.
+- The paper desk's macro list lacks NFP and CPI while the lab list has them.
+- Writes of large project files can be refused by the harness (Nov 9: the 1:23 ledger write was denied once and succeeded on a re-run with the owner's written approval). Per-day append files and a deterministic writer are the planned fix.
