@@ -8,7 +8,7 @@ from contextlib import redirect_stdout
 from datetime import date, datetime, time, timedelta, timezone
 
 from consumer import paper_ledger
-from consumer.replay_r2 import LEDGER_FIELDS, PT, derive, main, replay, stop_price
+from consumer.replay_r2 import LEDGER_FIELDS, PT, derive, main, replay, resolve, stop_price
 from feed_pipeline import calendar
 from tests.helpers import sessions
 
@@ -206,6 +206,91 @@ class ReplayR2Tests(unittest.TestCase):
             with redirect_stdout(buf):
                 self.assertEqual(main(["--bars", str(root / "bars.csv"), "--daily", str(root / "daily.csv"),
                                        "--days", "2026-11-10", "--events", str(root / "events.json")]), 2)
+
+
+class ResolveTests(unittest.TestCase):
+    TID = "R2B-DEMO-20261110-0645"
+
+    def later(self, special=None):
+        bars, daily, level = market()
+        (d1,) = after(DAY, 1)
+        bars = {"DEMO": bars["DEMO"] + intraday(d1, level, 40_000, special(level) if callable(special) else special)}
+        return bars, daily, level
+
+    def test_resolve_finds_the_exit_a_keyed_session_never_saw(self):
+        first, daily, _ = market()
+        self.assertFalse(rows_of(replay(first, daily, [DAY])[0], "exit"))  # day-of run: no later bars, UNRESOLVED
+        bars, daily, level = self.later(lambda x: {"07:00": {"l": x * 0.5}})
+        exits, report = resolve(bars, daily, {self.TID})
+        (x,) = exits
+        self.assertEqual((x["trade_id"], x["event_id"], x["kind"]), (self.TID, self.TID + "-X", "exit"))
+        self.assertTrue(x["source"].endswith("EXIT_STOP_20PCT"))
+        self.assertGreater(x["occurred_at"][:10], DAY.isoformat())
+        self.assertEqual(report, {"resolved": [self.TID], "still_open": [], "not_reproduced": [], "entry_mismatch": []})
+
+    def test_resolve_matches_a_single_multi_day_replay(self):
+        bars, daily, _ = self.later(lambda x: {"07:00": {"l": x * 0.5}})
+        full = [r for r in replay(bars, daily, [DAY])[0] if r["kind"] == "exit"]
+        exits, _report = resolve(bars, daily, {self.TID})
+        self.assertEqual(exits, full)
+
+    def test_resolve_reports_still_open_without_inventing_an_exit(self):
+        bars, daily, _ = market(later=1)
+        exits, report = resolve(bars, daily, {self.TID})
+        self.assertEqual((exits, report["still_open"], report["resolved"]), ([], [self.TID], []))
+
+    def test_unreproduced_malformed_and_other_rule_ids(self):
+        bars, daily, _ = self.later(lambda x: {"07:00": {"l": x * 0.5}})
+        exits, report = resolve(bars, daily, {self.TID, "R2B-DEMO-20261110-0700", "R2B-DEMO-bad", "R3B-DEMO-20261110-0645"})
+        self.assertEqual([x["trade_id"] for x in exits], [self.TID])
+        self.assertEqual(report["not_reproduced"], ["R2B-DEMO-20261110-0700", "R2B-DEMO-bad"])
+        self.assertEqual(resolve(bars, daily, set())[1],
+                         {"resolved": [], "still_open": [], "not_reproduced": [], "entry_mismatch": []})
+
+    def test_normal_mode_is_unchanged_by_resolve(self):
+        bars, daily, _ = market()
+        before = replay(bars, daily, [DAY])
+        resolve(bars, daily, {self.TID})
+        self.assertEqual(replay(bars, daily, [DAY]), before)
+
+    def test_cli_resolve_writes_only_exit_rows_and_requires_days_otherwise(self):
+        bars, daily, _ = self.later(lambda x: {"07:00": {"l": x * 0.5}})
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            with open(root / "bars.csv", "w", newline="", encoding="utf-8") as fh:
+                w = csv.writer(fh)
+                w.writerow(["symbol", "begins_at", "open", "high", "low", "close", "volume", "interpolated"])
+                for b in bars["DEMO"]:
+                    w.writerow(["DEMO", b["start"].isoformat(), b["o"], b["h"], b["l"], b["c"], b["v"], "false"])
+            with open(root / "daily.csv", "w", newline="", encoding="utf-8") as fh:
+                w = csv.writer(fh)
+                w.writerow(["symbol", "begins_at", "open", "high", "low", "close", "volume"])
+                for d in daily["DEMO"]:
+                    w.writerow(["DEMO", f"{d['day']}T00:00:00Z", d["c"], d["h"], d["c"], d["c"], d["v"]])
+            (root / "open.csv").write_text("trade_id,price,qty,score\n" + self.TID + ",,,\n", encoding="utf-8")
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                code = main(["--bars", str(root / "bars.csv"), "--daily", str(root / "daily.csv"),
+                             "--resolve", str(root / "open.csv"), "--out", str(root / "out")])
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(buf.getvalue()),
+                             {"open": 1, "resolved": 1, "still_open": 0, "not_reproduced": 0, "entry_mismatch": 0})
+            with open(root / "out" / "resolve_exits.csv", newline="", encoding="utf-8") as fh:
+                rows = list(csv.DictReader(fh))
+            self.assertEqual([(r["trade_id"], r["kind"]) for r in rows], [(self.TID, "exit")])
+            self.assertEqual(sorted(p.name for p in (root / "out").iterdir()), ["resolve_exits.csv", "resolve_report.json"])
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                self.assertEqual(main(["--bars", str(root / "bars.csv"), "--daily", str(root / "daily.csv")]), 2)
+
+    def test_exit_keeps_the_ledger_size_and_a_wrong_fill_is_not_resolved(self):
+        bars, daily, _ = self.later(lambda x: {"07:00": {"l": x * 0.5}})
+        entry = rows_of(replay(bars, daily, [DAY])[0], "entry")[0]
+        exits, report = resolve(bars, daily, {self.TID: {"price": entry["price"], "qty": "1.500000", "score": "8"}})
+        self.assertEqual((exits[0]["qty"], exits[0]["score"]), ("1.500000", "8"))
+        self.assertEqual(report["resolved"], [self.TID])
+        exits, report = resolve(bars, daily, {self.TID: {"price": "999.0000", "qty": "1.5", "score": "8"}})
+        self.assertEqual((exits, report["entry_mismatch"], report["resolved"]), ([], [self.TID], []))
 
 
 if __name__ == "__main__":

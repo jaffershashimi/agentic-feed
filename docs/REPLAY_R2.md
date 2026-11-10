@@ -67,3 +67,17 @@ All tests use invented symbols and prices.
 ## R4 (replay-only room filter test, 2026-11-02)
 
 `--rules R4` is R2 with filter F4 capped: the required room to resistance is the smaller of 2% and one daily ATR(14) as a fraction of price. Everything else is R2. Rule text: [system/rules/REPLAY_RULES_R4.md](../system/rules/REPLAY_RULES_R4.md).
+
+## Resolving open trades (`--resolve`, added 2026-11-10)
+
+A session already listed in `replay_sessions.csv` is never replayed again. A stock entry made late in a session has no later bars at the time, so it is recorded with no exit, and the next day's run skips that session, so the exit rules never see the sessions after it. `--resolve` closes that gap without touching normal behavior.
+
+```
+python3 -I -m consumer.replay_r2 --bars bars5m.csv --daily daily.csv --resolve open_trades.csv [--rules R3|R4] [--r2-hash ...] [--events events.json] [--out DIR]
+```
+
+- `open_trades.csv`: a `trade_id` column for stock trades that have an entry and no exit in the ledger, plus optional `price`, `qty` and `score` copied from each ledger entry. The bars must cover the entry day and every session after it (and the usual 22 sessions before the earliest entry day).
+- The engine replays only the entry days of those trades (done keys ignored) and writes `resolve_exits.csv` (ledger rows, exits only) and `resolve_report.json`. Nothing else is written: no entries, stops, score parts or session keys.
+- `price` is verified against the re-derived entry fill (4 decimals); a mismatch is reported as `entry_mismatch` and gets no exit. `qty` and `score` from the ledger replace the re-derived values on the exit row, so an exit never carries a size different from its entry even if an input such as the macro list has changed since.
+- Report fields: `resolved`, `still_open` (entry reproduced, no exit rule fired yet), `not_reproduced` (id the engine does not generate, including malformed ids), `entry_mismatch`.
+- Append the exit rows to the ledger, append only, in the same single write as the day's other rows, and run the pinned checker on the result.
