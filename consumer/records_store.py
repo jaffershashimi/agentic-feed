@@ -15,6 +15,8 @@ Commands (all print a JSON report; none ever edits an existing file):
   reconcile  compare the live table with the store, write nothing
   verify     check the store's own integrity
   restore    write the store's union of rows to a NEW file (refuses to overwrite)
+  checkpoint compare the live table's history with a saved (rows, digest) pair; needs no
+             stored rows, so a run that can only copy two values can use it (see docs)
 
 Exit codes: 0 clean, 2 usage or file error, 3 problem found (lost, changed, damaged).
 
@@ -297,6 +299,54 @@ def restore(store: Path, key: str, out: Path) -> tuple[dict, int]:
     return rep, 0
 
 
+def prefix_digest(header: list[str], rows: list[list[str]], n: int) -> str:
+    """sha256 of the canonical rendering of the header and the first n rows."""
+    return sha256_bytes(render_csv(header, rows[:n]))
+
+
+def checkpoint(table: Path, prev_rows: int | None, prev_digest: str | None,
+               out: Path | None = None, created: str | None = None) -> tuple[dict, int]:
+    """Check that the table's first `prev_rows` rows are exactly what they were at the last
+    checkpoint (append-only means history never changes), then describe the table now.
+
+    status: BASELINE (no previous checkpoint), OK, LOST (fewer rows than before) or
+    CHANGED (a row or the header differs). LOST and CHANGED exit 3 and write nothing.
+    """
+    header, rows = read_table(table)
+    rep: dict = {
+        "table": Path(table).name,
+        "rows": len(rows),
+        "digest": prefix_digest(header, rows, len(rows)),
+        "raw_sha256": sha256_bytes(Path(table).read_bytes()),
+        "prev_rows": prev_rows,
+        "created": created or datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
+    }
+    if (prev_rows is None) != (prev_digest is None):
+        raise StoreError("pass both --prev-rows and --prev-digest, or neither")
+    if prev_rows is None:
+        rep["status"] = "BASELINE"
+    elif prev_rows < 0:
+        raise StoreError("--prev-rows must be 0 or more")
+    elif len(rows) < prev_rows:
+        rep["status"] = "LOST"
+        rep["lost_rows"] = prev_rows - len(rows)
+    elif prefix_digest(header, rows, prev_rows) != prev_digest:
+        rep["status"] = "CHANGED"
+    else:
+        rep["status"] = "OK"
+        rep["grew_by"] = len(rows) - prev_rows
+    if rep["status"] in ("LOST", "CHANGED"):
+        return rep, 3
+    if out is not None:
+        out = Path(out)
+        if out.exists():
+            raise StoreError(f"{out} exists; checkpoint never overwrites")
+        keep = {k: rep[k] for k in ("table", "rows", "digest", "raw_sha256", "created")}
+        out.write_text(json.dumps(keep, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        rep["wrote"] = str(out)
+    return rep, 0
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -310,6 +360,12 @@ def main(argv=None) -> int:
     p = sub.add_parser("verify")
     p.add_argument("--store", required=True, type=Path)
     p.add_argument("--key", required=True)
+    p = sub.add_parser("checkpoint")
+    p.add_argument("--table", required=True, type=Path)
+    p.add_argument("--prev-rows", type=int)
+    p.add_argument("--prev-digest")
+    p.add_argument("--out", type=Path)
+    p.add_argument("--created")
     p = sub.add_parser("restore")
     p.add_argument("--store", required=True, type=Path)
     p.add_argument("--key", required=True)
@@ -320,6 +376,8 @@ def main(argv=None) -> int:
             rep, code = sync(args.table, args.store, args.key, args.created)
         elif args.cmd == "reconcile":
             rep, code = reconcile(args.table, args.store, args.key)
+        elif args.cmd == "checkpoint":
+            rep, code = checkpoint(args.table, args.prev_rows, args.prev_digest, args.out, args.created)
         elif args.cmd == "verify":
             rep, code = verify(args.store, args.key)
         else:
