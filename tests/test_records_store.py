@@ -267,5 +267,111 @@ class CliTests(StoreCase):
         self.assertEqual(code, 2)
 
 
+class CheckpointTests(StoreCase):
+    def cp(self, prev_rows=None, prev_digest=None, out=None):
+        return rs.checkpoint(self.live, prev_rows, prev_digest, out, "2026-11-10T00:00:00Z")
+
+    def test_baseline_without_previous(self):
+        write_csv(self.live, mk_rows(0, 10))
+        rep, code = self.cp()
+        self.assertEqual((code, rep["status"], rep["rows"]), (0, "BASELINE", 10))
+
+    def test_growth_is_ok(self):
+        write_csv(self.live, mk_rows(0, 10))
+        base, _ = self.cp()
+        write_csv(self.live, mk_rows(0, 17))
+        rep, code = self.cp(base["rows"], base["digest"])
+        self.assertEqual((code, rep["status"], rep["grew_by"]), (0, "OK", 7))
+
+    def test_unchanged_is_ok_with_zero_growth(self):
+        write_csv(self.live, mk_rows(0, 10))
+        base, _ = self.cp()
+        rep, code = self.cp(base["rows"], base["digest"])
+        self.assertEqual((code, rep["status"], rep["grew_by"]), (0, "OK", 0))
+
+    def test_nov3_rollback_is_lost(self):
+        write_csv(self.live, mk_rows(0, 400))
+        base, _ = self.cp()
+        write_csv(self.live, mk_rows(0, 37))
+        rep, code = self.cp(base["rows"], base["digest"])
+        self.assertEqual((code, rep["status"], rep["lost_rows"]), (3, "LOST", 363))
+
+    def test_edited_old_row_is_changed(self):
+        write_csv(self.live, mk_rows(0, 10))
+        base, _ = self.cp()
+        rows = mk_rows(0, 14)
+        rows[3][3] = "1.0"
+        write_csv(self.live, rows)
+        rep, code = self.cp(base["rows"], base["digest"])
+        self.assertEqual((code, rep["status"]), (3, "CHANGED"))
+
+    def test_same_count_but_swapped_history_is_changed(self):
+        write_csv(self.live, mk_rows(0, 10))
+        base, _ = self.cp()
+        write_csv(self.live, mk_rows(100, 110))
+        rep, code = self.cp(base["rows"], base["digest"])
+        self.assertEqual((code, rep["status"]), (3, "CHANGED"))
+
+    def test_header_change_is_changed(self):
+        write_csv(self.live, mk_rows(0, 5))
+        base, _ = self.cp()
+        write_csv(self.live, mk_rows(0, 9), header=["event_id", "mode", "qty", "px"])
+        rep, code = self.cp(base["rows"], base["digest"])
+        self.assertEqual((code, rep["status"]), (3, "CHANGED"))
+
+    def test_line_endings_do_not_cause_a_false_alarm(self):
+        write_csv(self.live, mk_rows(0, 10))
+        base, _ = self.cp()
+        self.live.write_bytes(self.live.read_bytes().replace(b"\n", b"\r\n"))
+        rep, code = self.cp(base["rows"], base["digest"])
+        self.assertEqual((code, rep["status"]), (0, "OK"))
+
+    def test_problem_writes_nothing(self):
+        write_csv(self.live, mk_rows(0, 10))
+        base, _ = self.cp()
+        write_csv(self.live, mk_rows(0, 4))
+        out = self.dir / "cp.json"
+        rep, code = self.cp(base["rows"], base["digest"], out)
+        self.assertEqual(code, 3)
+        self.assertFalse(out.exists())
+
+    def test_writes_small_json_and_never_overwrites(self):
+        write_csv(self.live, mk_rows(0, 6))
+        out = self.dir / "cp.json"
+        rep, code = self.cp(out=out)
+        saved = json.loads(out.read_text())
+        self.assertEqual((saved["rows"], saved["digest"]), (6, rep["digest"]))
+        self.assertEqual(sorted(saved), ["created", "digest", "raw_sha256", "rows", "table"])
+        with self.assertRaises(rs.StoreError):
+            self.cp(out=out)
+
+    def test_needs_both_previous_values(self):
+        write_csv(self.live, mk_rows(0, 3))
+        with self.assertRaises(rs.StoreError):
+            self.cp(prev_rows=3)
+        with self.assertRaises(rs.StoreError):
+            self.cp(prev_digest="ab")
+
+    def test_cli_checkpoint_round_trip(self):
+        write_csv(self.live, mk_rows(0, 8))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = rs.main(["checkpoint", "--table", str(self.live), "--out", str(self.dir / "a.json")])
+        base = json.loads(buf.getvalue())
+        self.assertEqual((code, base["status"]), (0, "BASELINE"))
+        write_csv(self.live, mk_rows(0, 11))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = rs.main(["checkpoint", "--table", str(self.live), "--prev-rows", str(base["rows"]),
+                            "--prev-digest", base["digest"]])
+        self.assertEqual((code, json.loads(buf.getvalue())["status"]), (0, "OK"))
+        write_csv(self.live, mk_rows(0, 2))
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = rs.main(["checkpoint", "--table", str(self.live), "--prev-rows", str(base["rows"]),
+                            "--prev-digest", base["digest"]])
+        self.assertEqual((code, json.loads(buf.getvalue())["status"]), (3, "LOST"))
+
+
 if __name__ == "__main__":
     unittest.main()
