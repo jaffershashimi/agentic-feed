@@ -56,7 +56,8 @@ def sha256_bytes(data: bytes) -> str:
 def read_table(path: Path) -> tuple[list[str], list[list[str]]]:
     """Parse a CSV into (header, rows). Rejects empty files, ragged rows, blank headers."""
     try:
-        text = Path(path).read_text(encoding="utf-8", newline="")
+        with open(path, encoding="utf-8", newline="") as fh:
+            text = fh.read()
     except OSError as exc:
         raise StoreError(f"cannot read {path}: {exc}") from exc
     parsed = [r for r in csv.reader(io.StringIO(text, newline="")) if r]
