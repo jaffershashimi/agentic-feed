@@ -35,6 +35,13 @@ section 6 prescribes when no option data exists. Each arm has its own p2 caps.
         [--option-bars options5m.csv] [--chain chain.csv] [--events events.json] [--done replay_sessions.csv]
         [--out DIR] [--r2-hash c879c06e24a5]
 
+    python3 -I -m consumer.replay_r2 --bars bars5m.csv --daily daily.csv --resolve open_trades.csv [--rules R3|R4] [--out DIR]
+
+--resolve (added 2026-11-10): open_trades.csv has a trade_id column (stock trades with an entry and no exit in the
+ledger) and optionally price, qty and score copied from each ledger entry (price is verified; qty and score are kept on the exit). The bars must cover the sessions after each entry. Only the exit rows of those trade ids are written
+(resolve_exits.csv) plus resolve_report.json (resolved, still_open, not_reproduced). Use it for trades entered late in a
+session, whose exit could not be seen when their session was first replayed. Entries and the normal mode are unchanged.
+
 bars5m.csv and daily.csv columns: symbol, begins_at, open, high, low, close, volume[, interpolated]. events.json:
 {"earnings": [{"symbol": "X", "date": "YYYY-MM-DD", "timing": "am" | "pm"}], "macro": ["YYYY-MM-DD", ...]}; without
 it the R2 macro list is used and no earnings are known. options5m.csv columns: underlying, expiration (YYYY-MM-DD),
@@ -605,6 +612,52 @@ def replay(bars, daily, days, earnings=(), macro=R2_MACRO, done=(), r2_hash=R2_H
     return ledger, parts, decisions, keys
 
 
+def _trade_day(trade_id):
+    """Entry session of a replay trade id like R2B-SYM-20261110-1230, or None if the id is malformed."""
+    try:
+        stamp = trade_id.rsplit("-", 2)[1]
+        return date(int(stamp[:4]), int(stamp[4:6]), int(stamp[6:8]))
+    except (IndexError, ValueError):
+        return None
+
+
+def resolve(bars, daily, open_trades, earnings=(), macro=R2_MACRO, r2_hash=R2_HASH, option_bars=None, chain=None,
+            rules="R2"):
+    """Exit rows for stock trades still open in the ledger, using bars that now cover the sessions after their entry.
+
+    A session already keyed as replayed is never replayed again, so an entry made late in the session (no later bars at
+    the time) keeps no exit forever. This replays only the entry days of the open trades, ignores the done keys, and
+    returns the exit rows of those same trade ids and nothing else (no entries, stops, scores or keys).
+
+    open_trades is a set of trade ids, or a dict trade id -> {"price", "qty", "score"} copied from the ledger entry.
+    When "price" is given, the re-derived entry fill must match it (to 4 decimals) or the trade is reported as
+    entry_mismatch and gets no exit row. "qty" and "score" override the re-derived values on the exit row, so the exit
+    always carries the size of the ledger entry even if the inputs (for example the macro list) differ today.
+    Returns (exit rows, report dict with resolved, still_open, not_reproduced and entry_mismatch trade ids)."""
+    meta = dict(open_trades) if isinstance(open_trades, dict) else {t: {} for t in open_trades}
+    mine = {t for t in meta if t.startswith(f"{rules}B-")}
+    wanted = {t for t in mine if _trade_day(t) is not None}
+    malformed = mine - wanted
+    days = sorted({_trade_day(t) for t in wanted})
+    ledger = replay(bars, daily, days, earnings, macro, (), r2_hash, option_bars, chain, rules)[0] if days else []
+    entry_price = {r["trade_id"]: float(r["price"]) for r in ledger if r["kind"] == "entry"}
+    mismatch = {t for t in wanted & set(entry_price) if meta[t].get("price") not in (None, "")
+                and abs(entry_price[t] - float(meta[t]["price"])) > 0.00006}
+    exits = []
+    for r in ledger:
+        if r["kind"] == "exit" and r["trade_id"] in wanted and r["trade_id"] not in mismatch:
+            r = dict(r)
+            for field in ("qty", "score"):
+                if meta[r["trade_id"]].get(field) not in (None, ""):
+                    r[field] = str(meta[r["trade_id"]][field])
+            exits.append(r)
+    done = {r["trade_id"] for r in exits}
+    entered = set(entry_price) - mismatch
+    return exits, {"resolved": sorted(done), "still_open": sorted((wanted & entered) - done),
+                   "not_reproduced": sorted((wanted - set(entry_price)) | malformed),
+                   "entry_mismatch": sorted(mismatch)}
+
+
 def _decision_json(d):
     out = {k: v for k, v in d.items() if k not in ("time", "day", "parts")}
     out["time"] = d["time"].isoformat()
@@ -630,7 +683,8 @@ def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--bars", required=True)
     ap.add_argument("--daily", required=True)
-    ap.add_argument("--days", required=True, action="append", type=date.fromisoformat)
+    ap.add_argument("--days", action="append", type=date.fromisoformat, help="sessions to replay (not needed with --resolve)")
+    ap.add_argument("--resolve", help="CSV with a trade_id column of stock trades still open in the ledger: write only their exit rows (resolve_exits.csv, resolve_report.json)")
     ap.add_argument("--option-bars", help="call 5m bars CSV; turns on the option arms")
     ap.add_argument("--chain", help="listed call strikes CSV (underlying, expiration, strike)")
     ap.add_argument("--events")
@@ -645,6 +699,26 @@ def main(argv=None):
     except (ValueError, KeyError) as exc:
         print(json.dumps({"errors": [f"events: {exc}"]}))
         return 2
+    if not a.resolve and not a.days:
+        print(json.dumps({"errors": ["--days is required unless --resolve is given"]}))
+        return 2
+    if a.resolve:
+        with open(a.resolve, newline="", encoding="utf-8") as fh:
+            open_trades = {(r.get("trade_id") or "").strip(): {k: (r.get(k) or "").strip() for k in ("price", "qty", "score")}
+                           for r in csv.DictReader(fh)}
+        open_trades.pop("", None)
+        exits, report = resolve(load_bars(a.bars), load_daily(a.daily), open_trades, earnings, macro, a.r2_hash,
+                                load_option_bars(a.option_bars) if a.option_bars else None,
+                                load_chain(a.chain) if a.chain else None, a.rules)
+        out = Path(a.out)
+        out.mkdir(parents=True, exist_ok=True)
+        with open(out / "resolve_exits.csv", "w", newline="", encoding="utf-8") as fh:
+            w = csv.DictWriter(fh, fieldnames=LEDGER_FIELDS)
+            w.writeheader()
+            w.writerows(exits)
+        (out / "resolve_report.json").write_text(json.dumps(report, indent=1), encoding="utf-8")
+        print(json.dumps({"open": len(open_trades), **{k: len(v) for k, v in report.items()}}, indent=1))
+        return 0
     done = set()
     if a.done and Path(a.done).exists():
         with open(a.done, newline="", encoding="utf-8") as fh:
