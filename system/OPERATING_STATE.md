@@ -64,10 +64,11 @@ These are copies for reference; the running desk reads its own frozen copies, an
 | consumer/paper_ledger.py | 59b1eeb | bbed2756813ece1b0eddd60ee44d2659c1eee2681c91e9b8eb52251de02e976d |
 | consumer/score_check.py | 59b1eeb | 1ca793e864893e94b5a249b14a2cb8156976e7c61cc3d194d75084dbd81e3b56 |
 | consumer/compare_arms.py | 3e90c0a | de033bf8ea4067f645103fc6c179961ece94f8d6bad82806a79d35f8efe0f54f |
-| consumer/replay_r2.py (engine, R2/R3/R4) | 3efe54c | e86000b49cdbb0fcdf9c889012c84866749b750019d676e1af35060973d706c9 |
+| consumer/replay_r2.py (engine, R2/R3/R4, with `--resolve`) | 5754d6b | da03d966557577d8e879817b447be80f8f42253efd0d2f2187a16095fa1ede45 (previous pin 3efe54c, e86000b4..., used as fallback without `--resolve`) |
+| consumer/records_store.py (`checkpoint`: history guard for the ledger) | 5a3cadf | e1343b2b6cd0c1dd6db52bf821ab94259314bd02c833c9cc14391504e46d83b4 |
 | consumer/replay_daily.py (REPLAY-DAILY, TEST ONLY, no schedule yet) | see note | pin set when the owner approves the first run |
 
-Docs: [REPLAY_R2](../docs/REPLAY_R2.md), [COMPARE_ARMS](../docs/COMPARE_ARMS.md), [SCORE_CHECK](../docs/SCORE_CHECK.md), [DESK_CONSUMER](../docs/DESK_CONSUMER.md).
+Docs: [REPLAY_R2](../docs/REPLAY_R2.md), [RECORDS_STORE](../docs/RECORDS_STORE.md), [COMPARE_ARMS](../docs/COMPARE_ARMS.md), [SCORE_CHECK](../docs/SCORE_CHECK.md), [DESK_CONSUMER](../docs/DESK_CONSUMER.md).
 
 ## Judging results
 
@@ -111,12 +112,12 @@ Docs: [REPLAY_R2](../docs/REPLAY_R2.md), [COMPARE_ARMS](../docs/COMPARE_ARMS.md)
 ## Known issues (Nov 10)
 
 - R4 never differs from R2 on this watchlist: daily ATR(14) over price is at least 2% for every name, so the min(2%, ATR) cap never binds.
-- The engine does not see positions still open in the ledger from earlier days, so the 1:23 lab sometimes withholds entries by hand (CAP_D4) to keep the 3-open limit. Fix planned in replay_r2.py, then a new pin. (The Nov 9 close-out removed the legacy cases; the gap remains for new multi-day holds.)
+- The engine does not see positions still open in the ledger from earlier days, so the 1:23 lab sometimes withholds entries by hand (CAP_D4) to keep the 3-open limit. Still open for entries (a planned engine change); the Nov 9 close-out removed the legacy cases and the gap remains for new multi-day holds. Exits are now handled separately: see the next item.
 - Many R2 replay trades exit the same day on the 4h close under EMA20; whether that exit cuts winners is an open question (replay-only check after the first REPLAY-DAILY run).
 - IONQ earnings date disagreed between calendars (Nov 4 vs Nov 5 after close).
 - REPLAY-DAILY results lean optimistic (symbol list chosen today, survivorship bias) and never count toward the go-live gate. First run: Fri Nov 6, plain RD1 and RD1+MKT.
 - Paper run and engine score the same bar differently (Nov 9: AMZN 9 vs 8, SPY 7 vs 6, PLTR 8 vs 7). Cause found Nov 9: same bar and inputs, only the risk criterion differs (paper 2, engine 1). The written R2 macro list ends at GDP/PCE Oct 29; the 1:23 prompt also feeds the engine FOMC, CPI, jobs, GDP and PCE dates (CPI Nov 10). Decided by the owner on Nov 10: from Nov 11 the replay scores risk from the written R2 list only, like paper (sessions before that used the broader list); binary_event tags keep the full list.
-- About a third of R2 replay entries (17 of 51 in the holdout, Nov 9) have no real exit: the engine cannot manage holds across sessions, so closed-only statistics leave out the worse trades (excursion analysis, gap -1.38% on those vs -0.03% on the rule's own exits). Fix planned with the open-positions fix in `replay_r2.py`, then a new pin. Until then the Nov 22 decision rules were amended (owner, Nov 10): if over 20% of R2 holdout entries have no real exit, extending also needs the sensitivity row (unexited trades marked at last close) not to be entirely below zero.
+- About a third of R2 replay entries (17 of 51 in the holdout, Nov 9) have no real exit: the engine cannot manage holds across sessions, so closed-only statistics leave out the worse trades (excursion analysis, gap -1.38% on those vs -0.03% on the rule's own exits). Fixed for exits on Nov 10: `replay_r2.py --resolve` (engine commit 5754d6b) applies the frozen exit rules to open replay trades; the 1:23 run uses it from Nov 11, and the unexited share will be re-measured after that run. The Nov 22 decision rules were amended (owner, Nov 10): if over 20% of R2 holdout entries have no real exit, extending also needs the sensitivity row (unexited trades marked at last close) not to be entirely below zero.
 - Excursion analysis (Nov 9, project): R2 entries show no measurable signal over random start times (label ENTRY_SIGNAL_ABSENT); the 4h EMA20 exit is not shown to cut winners in closed trades.
 - The paper desk's macro list lacks NFP and CPI while the lab list has them.
-- Writes of large project files can be refused by the harness (Nov 9: the 1:23 ledger write was denied once and succeeded on a re-run with the owner's written approval). Per-day append files and a deterministic writer are the planned fix.
+- Writes of large project files can be refused by the harness (Nov 9: the 1:23 ledger write was denied once and succeeded on a re-run with the owner's written approval). Mitigation added Nov 10: the 1:23 run now checks the ledger's history against the last checkpoint before it writes anything (`consumer/records_store.py checkpoint`, see [RECORDS_STORE](../docs/RECORDS_STORE.md)); a lost or changed history stops all appends and raises RECORDS_ALERT. This detects an overwrite, it does not restore one.
