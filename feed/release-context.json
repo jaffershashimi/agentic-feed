@@ -2,7 +2,7 @@
   "schema": "release-context/1",
   "releaseId": 221,
   "status": "AVAILABLE",
-  "receivedAt": "2026-11-11T18:50:05+00:00",
+  "receivedAt": "2026-11-11T22:17:09+00:00",
   "complete": true,
   "pages": 4,
   "records": [
@@ -11,7 +11,7 @@
       "observationDate": "2026-10-30",
       "value": "-0.435",
       "seriesUpdatedAt": "2026-11-04T13:34:14Z",
-      "availableAt": "2026-11-11T18:50:05+00:00",
+      "availableAt": "2026-11-11T22:17:09+00:00",
       "historyHash": "2b84dda19f94778700a2a469f228c53e695ce171281f716984880e8f1b3c9a6a",
       "changedSincePrevious": false,
       "metadata": {
@@ -29,7 +29,7 @@
       "observationDate": "2026-10-30",
       "value": "-0.459",
       "seriesUpdatedAt": "2026-11-04T13:34:10Z",
-      "availableAt": "2026-11-11T18:50:05+00:00",
+      "availableAt": "2026-11-11T22:17:09+00:00",
       "historyHash": "c622f145a407aa7b817a843f7253759d2f02f4e334f0fb6b6810b29bbe4c579e",
       "changedSincePrevious": false,
       "metadata": {
