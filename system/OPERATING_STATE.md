@@ -68,6 +68,7 @@ These are copies for reference; the running desk reads its own frozen copies, an
 | consumer/records_store.py (`checkpoint`: history guard for the ledger) | 5a3cadf | e1343b2b6cd0c1dd6db52bf821ab94259314bd02c833c9cc14391504e46d83b4 |
 | consumer/rank_audit.py (stock-only rank and influence audit; analysis only) | e3e7c21 | 35149871fd14b8f3b905866f21f643f1977de81d4187fd2a4c521a815d77e612 |
 | consumer/bar_archive.py (SIP 5-minute bar archive, testing mode; run by the daily review, not a schedule prompt pin) | f7c8838 | 1e721325cbdbea550c23b6636aa7a17ee0455f6aab39c9653a895966fed65d0a |
+| consumer/alpaca_paper.py (Alpaca PAPER order tool; paper host only, dry run unless --submit; not in any schedule prompt; first plumbing test Nov 16) | 49de2f5 | c6719218ccff8acfb0a14f47df330f958c08963b0d93826428e97f990dac5e1c |
 | consumer/replay_daily.py (REPLAY-DAILY, TEST ONLY, no schedule yet) | see note | pin set when the owner approves the first run |
 
 Docs: [REPLAY_R2](../docs/REPLAY_R2.md), [RECORDS_STORE](../docs/RECORDS_STORE.md), [RANK_AUDIT](../docs/RANK_AUDIT.md), [BAR_ARCHIVE](../docs/BAR_ARCHIVE.md), [COMPARE_ARMS](../docs/COMPARE_ARMS.md), [SCORE_CHECK](../docs/SCORE_CHECK.md), [DESK_CONSUMER](../docs/DESK_CONSUMER.md).
