@@ -53,6 +53,7 @@ Docs:
 - `docs/SCORE_CHECK.md` (does a higher entry score lead to better trades?)
 - `docs/REPLAY_R2.md` (deterministic replay of frozen rules R2 over saved bars)
 - `docs/COMPARE_ARMS.md` (paired R2 vs R3 and tag comparison, Holm-adjusted)
+- `docs/RANK_AUDIT.md` (stock-only rank and influence audit of the R2 score; descriptive, TEST ONLY)
 - `docs/BAR_ARCHIVE.md` (testing-mode archive of SIP 5-minute bars with a hash per day; nothing reads from it yet)
 - `docs/RECORDS_STORE.md` (append-only, hash-chained copy of the paper records; detects and undoes a stale overwrite)
 - `docs/REPLAY_R2.md`, section "Resolving open trades" (`--resolve`: closes replay trades that entered too late in a session to get an exit)
