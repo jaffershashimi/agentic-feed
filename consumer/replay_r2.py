@@ -622,7 +622,7 @@ def _trade_day(trade_id):
 
 
 def resolve(bars, daily, open_trades, earnings=(), macro=R2_MACRO, r2_hash=R2_HASH, option_bars=None, chain=None,
-            rules="R2"):
+            rules="R2", entry_tolerance_pct=0.0):
     """Exit rows for stock trades still open in the ledger, using bars that now cover the sessions after their entry.
 
     A session already keyed as replayed is never replayed again, so an entry made late in the session (no later bars at
@@ -633,7 +633,13 @@ def resolve(bars, daily, open_trades, earnings=(), macro=R2_MACRO, r2_hash=R2_HA
     When "price" is given, the re-derived entry fill must match it (to 4 decimals) or the trade is reported as
     entry_mismatch and gets no exit row. "qty" and "score" override the re-derived values on the exit row, so the exit
     always carries the size of the ledger entry even if the inputs (for example the macro list) differ today.
+    entry_tolerance_pct (default 0, the strict check above) accepts a re-derived entry fill that differs from the ledger
+    price by no more than that percent of the ledger price; bars revised after the fact can move a fill by a rounding
+    amount. Ledger prices never change; only whether an exit is computed. Every trade accepted this way is listed in
+    the report as entry_tolerated with both prices (keys present only when a tolerance is set).
     Returns (exit rows, report dict with resolved, still_open, not_reproduced and entry_mismatch trade ids)."""
+    if not 0 <= entry_tolerance_pct <= 1:
+        raise ValueError("entry_tolerance_pct must be between 0 and 1 (percent)")
     meta = dict(open_trades) if isinstance(open_trades, dict) else {t: {} for t in open_trades}
     mine = {t for t in meta if t.startswith(f"{rules}B-")}
     wanted = {t for t in mine if _trade_day(t) is not None}
@@ -641,8 +647,20 @@ def resolve(bars, daily, open_trades, earnings=(), macro=R2_MACRO, r2_hash=R2_HA
     days = sorted({_trade_day(t) for t in wanted})
     ledger = replay(bars, daily, days, earnings, macro, (), r2_hash, option_bars, chain, rules)[0] if days else []
     entry_price = {r["trade_id"]: float(r["price"]) for r in ledger if r["kind"] == "entry"}
-    mismatch = {t for t in wanted & set(entry_price) if meta[t].get("price") not in (None, "")
-                and abs(entry_price[t] - float(meta[t]["price"])) > 0.00006}
+    mismatch, tolerated = set(), {}
+    for t in wanted & set(entry_price):
+        if meta[t].get("price") in (None, ""):
+            continue
+        ledger_price = float(meta[t]["price"])
+        diff = abs(entry_price[t] - ledger_price)
+        if diff <= 0.00006:
+            continue
+        if entry_tolerance_pct > 0 and ledger_price > 0 and diff <= ledger_price * entry_tolerance_pct / 100:
+            entry_row = next(r for r in ledger if r["trade_id"] == t and r["kind"] == "entry")
+            tolerated[t] = {"ledger_price": ledger_price, "rederived_price": entry_price[t],
+                            "difference_pct": round(diff / ledger_price * 100, 4), "entry_bar": entry_row["occurred_at"]}
+        else:
+            mismatch.add(t)
     exits = []
     for r in ledger:
         if r["kind"] == "exit" and r["trade_id"] in wanted and r["trade_id"] not in mismatch:
@@ -653,9 +671,13 @@ def resolve(bars, daily, open_trades, earnings=(), macro=R2_MACRO, r2_hash=R2_HA
             exits.append(r)
     done = {r["trade_id"] for r in exits}
     entered = set(entry_price) - mismatch
-    return exits, {"resolved": sorted(done), "still_open": sorted((wanted & entered) - done),
-                   "not_reproduced": sorted((wanted - set(entry_price)) | malformed),
-                   "entry_mismatch": sorted(mismatch)}
+    report = {"resolved": sorted(done), "still_open": sorted((wanted & entered) - done),
+              "not_reproduced": sorted((wanted - set(entry_price)) | malformed),
+              "entry_mismatch": sorted(mismatch)}
+    if entry_tolerance_pct > 0:
+        report["entry_tolerated"] = sorted(tolerated)
+        report["entry_tolerated_detail"] = {t: tolerated[t] for t in sorted(tolerated)}
+    return exits, report
 
 
 def _decision_json(d):
@@ -685,6 +707,8 @@ def main(argv=None):
     ap.add_argument("--daily", required=True)
     ap.add_argument("--days", action="append", type=date.fromisoformat, help="sessions to replay (not needed with --resolve)")
     ap.add_argument("--resolve", help="CSV with a trade_id column of stock trades still open in the ledger: write only their exit rows (resolve_exits.csv, resolve_report.json)")
+    ap.add_argument("--entry-tolerance-pct", type=float, default=0.0,
+                    help="with --resolve: accept a re-derived entry fill within this percent of the ledger price (default 0 = strict 4 decimals)")
     ap.add_argument("--option-bars", help="call 5m bars CSV; turns on the option arms")
     ap.add_argument("--chain", help="listed call strikes CSV (underlying, expiration, strike)")
     ap.add_argument("--events")
@@ -707,9 +731,13 @@ def main(argv=None):
             open_trades = {(r.get("trade_id") or "").strip(): {k: (r.get(k) or "").strip() for k in ("price", "qty", "score")}
                            for r in csv.DictReader(fh)}
         open_trades.pop("", None)
-        exits, report = resolve(load_bars(a.bars), load_daily(a.daily), open_trades, earnings, macro, a.r2_hash,
-                                load_option_bars(a.option_bars) if a.option_bars else None,
-                                load_chain(a.chain) if a.chain else None, a.rules)
+        try:
+            exits, report = resolve(load_bars(a.bars), load_daily(a.daily), open_trades, earnings, macro, a.r2_hash,
+                                    load_option_bars(a.option_bars) if a.option_bars else None,
+                                    load_chain(a.chain) if a.chain else None, a.rules, a.entry_tolerance_pct)
+        except ValueError as exc:
+            print(json.dumps({"errors": [str(exc)]}))
+            return 2
         out = Path(a.out)
         out.mkdir(parents=True, exist_ok=True)
         with open(out / "resolve_exits.csv", "w", newline="", encoding="utf-8") as fh:
