@@ -292,6 +292,69 @@ class ResolveTests(unittest.TestCase):
         exits, report = resolve(bars, daily, {self.TID: {"price": "999.0000", "qty": "1.5", "score": "8"}})
         self.assertEqual((exits, report["entry_mismatch"], report["resolved"]), ([], [self.TID], []))
 
+    def test_entry_tolerance_accepts_a_rounding_sized_revision_and_logs_it(self):
+        bars, daily, _ = self.later(lambda x: {"07:00": {"l": x * 0.5}})
+        entry = rows_of(replay(bars, daily, [DAY])[0], "entry")[0]
+        e = float(entry["price"])
+        ledger_price = f"{e * 1.00009:.4f}"  # about 0.009 percent away, like the Nov 10 PLTR case
+        meta = {self.TID: {"price": ledger_price, "qty": "1.5", "score": "8"}}
+        exits, report = resolve(bars, daily, meta)  # strict by default
+        self.assertEqual((exits, report["entry_mismatch"]), ([], [self.TID]))
+        self.assertNotIn("entry_tolerated", report)
+        exits, report = resolve(bars, daily, meta, entry_tolerance_pct=0.05)
+        self.assertEqual(report["resolved"], [self.TID])
+        self.assertEqual((report["entry_mismatch"], report["entry_tolerated"]), ([], [self.TID]))
+        detail = report["entry_tolerated_detail"][self.TID]
+        self.assertEqual(detail["ledger_price"], float(ledger_price))
+        self.assertEqual(detail["rederived_price"], e)
+        self.assertLess(detail["difference_pct"], 0.05)
+        self.assertEqual(exits[0]["qty"], "1.5")  # the ledger size still wins
+
+    def test_entry_tolerance_still_rejects_a_real_difference(self):
+        bars, daily, _ = self.later(lambda x: {"07:00": {"l": x * 0.5}})
+        entry = rows_of(replay(bars, daily, [DAY])[0], "entry")[0]
+        ledger_price = f"{float(entry['price']) * 1.002:.4f}"  # 0.2 percent away
+        exits, report = resolve(bars, daily, {self.TID: {"price": ledger_price}}, entry_tolerance_pct=0.05)
+        self.assertEqual((exits, report["entry_mismatch"], report["entry_tolerated"]), ([], [self.TID], []))
+
+    def test_exact_match_is_not_listed_as_tolerated_and_bad_tolerance_is_refused(self):
+        bars, daily, _ = self.later(lambda x: {"07:00": {"l": x * 0.5}})
+        entry = rows_of(replay(bars, daily, [DAY])[0], "entry")[0]
+        _exits, report = resolve(bars, daily, {self.TID: {"price": entry["price"]}}, entry_tolerance_pct=0.05)
+        self.assertEqual((report["entry_tolerated"], report["entry_mismatch"], report["resolved"]), ([], [], [self.TID]))
+        for bad in (-0.01, 1.5):
+            with self.assertRaises(ValueError):
+                resolve(bars, daily, {self.TID}, entry_tolerance_pct=bad)
+
+    def test_cli_tolerance_flag_writes_the_detail_and_bad_value_exits_2(self):
+        bars, daily, _ = self.later(lambda x: {"07:00": {"l": x * 0.5}})
+        entry = rows_of(replay(bars, daily, [DAY])[0], "entry")[0]
+        with tempfile.TemporaryDirectory() as tmp:
+            root = pathlib.Path(tmp)
+            with open(root / "bars.csv", "w", newline="", encoding="utf-8") as fh:
+                w = csv.writer(fh)
+                w.writerow(["symbol", "begins_at", "open", "high", "low", "close", "volume", "interpolated"])
+                for b in bars["DEMO"]:
+                    w.writerow(["DEMO", b["start"].isoformat(), b["o"], b["h"], b["l"], b["c"], b["v"], "false"])
+            with open(root / "daily.csv", "w", newline="", encoding="utf-8") as fh:
+                w = csv.writer(fh)
+                w.writerow(["symbol", "begins_at", "open", "high", "low", "close", "volume"])
+                for d in daily["DEMO"]:
+                    w.writerow(["DEMO", f"{d['day']}T00:00:00Z", d["c"], d["h"], d["c"], d["c"], d["v"]])
+            off = f"{float(entry['price']) * 1.00009:.4f}"
+            (root / "open.csv").write_text("trade_id,price,qty,score\n" + self.TID + "," + off + ",,\n", encoding="utf-8")
+            args = ["--bars", str(root / "bars.csv"), "--daily", str(root / "daily.csv"), "--resolve", str(root / "open.csv"),
+                    "--out", str(root / "out")]
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                self.assertEqual(main(args + ["--entry-tolerance-pct", "0.05"]), 0)
+            self.assertEqual(json.loads(buf.getvalue())["entry_tolerated"], 1)
+            report = json.loads((root / "out" / "resolve_report.json").read_text())
+            self.assertIn(self.TID, report["entry_tolerated_detail"])
+            buf = io.StringIO()
+            with redirect_stdout(buf):
+                self.assertEqual(main(args + ["--entry-tolerance-pct", "5"]), 2)
+
 
 if __name__ == "__main__":
     unittest.main()
