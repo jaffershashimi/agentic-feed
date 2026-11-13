@@ -1,6 +1,6 @@
 # Agentic Lab operating state (public, no personal data)
 
-Updated 2026-11-10. This is the one public page a scheduled run can fetch to know how the system works today. The private hub is `jaffershashimi/Agentic-Lab`; this public repo holds the feed, the pinned tools and the rule texts. The former City app and its repository were deleted on 2026-10-31.
+Updated 2026-11-13. This is the one public page a scheduled run can fetch to know how the system works today. The private hub is `jaffershashimi/Agentic-Lab`; this public repo holds the feed, the pinned tools and the rule texts. The former City app and its repository were deleted on 2026-10-31.
 
 ## Roles
 
@@ -64,11 +64,13 @@ These are copies for reference; the running desk reads its own frozen copies, an
 | consumer/paper_ledger.py | 59b1eeb | bbed2756813ece1b0eddd60ee44d2659c1eee2681c91e9b8eb52251de02e976d |
 | consumer/score_check.py | 59b1eeb | 1ca793e864893e94b5a249b14a2cb8156976e7c61cc3d194d75084dbd81e3b56 |
 | consumer/compare_arms.py | 3e90c0a | de033bf8ea4067f645103fc6c179961ece94f8d6bad82806a79d35f8efe0f54f |
-| consumer/replay_r2.py (engine, R2/R3/R4, with `--resolve`) | 5754d6b | da03d966557577d8e879817b447be80f8f42253efd0d2f2187a16095fa1ede45 (previous pin 3efe54c, e86000b4..., used as fallback without `--resolve`) |
+| consumer/replay_r2.py (engine, R2/R3/R4, with `--resolve` and `--entry-tolerance-pct`) | 16f9030 | b08553691022e810aa83c25d704bcff549293c50a4734f55f2435bf01f7aa544 (fallbacks: 5754d6b, da03d966..., without the tolerance flag; then 3efe54c, e86000b4..., without `--resolve`) |
 | consumer/records_store.py (`checkpoint`: history guard for the ledger) | 5a3cadf | e1343b2b6cd0c1dd6db52bf821ab94259314bd02c833c9cc14391504e46d83b4 |
+| consumer/rank_audit.py (stock-only rank and influence audit; analysis only) | e3e7c21 | 35149871fd14b8f3b905866f21f643f1977de81d4187fd2a4c521a815d77e612 |
+| consumer/bar_archive.py (SIP 5-minute bar archive, testing mode; run by the daily review, not a schedule prompt pin) | f7c8838 | 1e721325cbdbea550c23b6636aa7a17ee0455f6aab39c9653a895966fed65d0a |
 | consumer/replay_daily.py (REPLAY-DAILY, TEST ONLY, no schedule yet) | see note | pin set when the owner approves the first run |
 
-Docs: [REPLAY_R2](../docs/REPLAY_R2.md), [RECORDS_STORE](../docs/RECORDS_STORE.md), [COMPARE_ARMS](../docs/COMPARE_ARMS.md), [SCORE_CHECK](../docs/SCORE_CHECK.md), [DESK_CONSUMER](../docs/DESK_CONSUMER.md).
+Docs: [REPLAY_R2](../docs/REPLAY_R2.md), [RECORDS_STORE](../docs/RECORDS_STORE.md), [RANK_AUDIT](../docs/RANK_AUDIT.md), [BAR_ARCHIVE](../docs/BAR_ARCHIVE.md), [COMPARE_ARMS](../docs/COMPARE_ARMS.md), [SCORE_CHECK](../docs/SCORE_CHECK.md), [DESK_CONSUMER](../docs/DESK_CONSUMER.md).
 
 ## Judging results
 
@@ -108,6 +110,13 @@ Docs: [REPLAY_R2](../docs/REPLAY_R2.md), [RECORDS_STORE](../docs/RECORDS_STORE.m
 - PAPER: 7 closed trades. Arm A -$132.72, Arm B -$145.50. Two option trades (AMZN calls, Nov 4) caused most of it; paper is stocks only since.
 - REPLAY R2 stock: +$2.94 per trade on Oct 20 to 26 (development), -$6.21 per trade on Oct 28 to Nov 5 (57 closed, interval below zero). R3 -$10.25. R4 matches R2.
 - Score check: the R2 score does not rank outcomes (Spearman about +0.09). Paired R2 vs R3 and R2 vs R4: insufficient_evidence (holdout 21 pairs, 4 sessions).
+
+## Results update (Nov 13, descriptive)
+
+- **Use the stock-only audit, not the mixed score-check table.** The checker filters by rule set and mode only, so its "R2" includes the old option arm. On the Nov 10 ledger the score 9 to 10 bucket mean of +5.75 percent (11 trades) is two option trades at +33.5 percent; the 9 stock trades average -0.42 percent from 2 sessions. Stock-only Spearman +0.05 (-0.22 to +0.37) over all dates and -0.14 (-0.54 to +0.32) in the holdout: no rank evidence. In the holdout the share of entered trades with a real exit falls as the score rises (83, 64, 38 and 0 percent for scores 6, 7, 8, 9 to 10), so closed-only tables leave out the best-scored trades. Full tables in the private hub `system/06-research/rank-audit-2026-11-13.md`; the 1:23 review now runs `rank_audit.py` daily.
+- **Unexited share (pre-registered definition, counts the Nov 9 close-out trades):** R2 37.5 percent on Nov 12, far above the 20 percent line. The open-only figure is a different number.
+- **Entry tolerance:** the resolve tool accepts a re-derived entry within 0.05 percent of the ledger price (Nov 13). A bar revised after the fact moved the Nov 10 PLTR 12:15 fill by 0.0089 percent; an entry that no longer re-derives at all is reported as not_reproduced and stays open.
+- **Data archive (testing mode):** SIP 5-minute bars for 40 symbols, one hashed file per day, 19 sessions so far. Robinhood bars agree with SIP closely on price (median difference 0) but carry about 55 percent of SIP volume. Nothing reads the archive for decisions.
 
 ## Known issues (Nov 10)
 
