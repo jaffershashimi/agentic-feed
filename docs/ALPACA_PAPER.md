@@ -32,8 +32,8 @@ Credentials come from the environment (`ALPACA_API_KEY`, `ALPACA_SECRET_KEY`, `A
 
 ## Plan
 1. Monday Nov 16, after the open: one SPY plumbing test (buy with stop, check the fill against the archived SIP bar, close).
-2. If the fills match, mirror R2 Arm B stock entries the desk makes. A recurring order-placing task needs the owner's yes first.
-3. Report fill price minus the desk's assumed price per trade as the slippage table.
+2. No new schedules (owner decision, Nov 13, 2026: token cost). The tool runs only when the owner asks for a trade in chat, during market hours. Any automation later would be a plain rule-following script on free CI minutes, not an AI schedule, and needs a written strategy and the owner's approval first.
+3. For each trade the owner asks for, report fill price minus the reference price (slippage). Results stay a separate BROKER_PAPER class.
 
 ## Not covered
 Real-money trading stays paused and is the owner's alone. This tool refuses any host other than the paper one.
