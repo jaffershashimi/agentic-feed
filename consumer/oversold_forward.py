@@ -170,14 +170,14 @@ def entry_body(c: dict, asof: date) -> dict:
             "client_order_id": f"{TAG}-{c['sym']}-{asof.strftime('%y%m%d')}"}
 
 
-def broker_state(call) -> dict:
+def broker_state(call, tag: str = TAG) -> dict:
     positions = call("GET", "/v2/positions")
     opens = call("GET", "/v2/orders?status=open&limit=200&nested=true")
     closed = call("GET", "/v2/orders?status=closed&limit=500&nested=true&direction=desc")
     tagged = {}
     for o in closed:
         cid = o.get("client_order_id") or ""
-        if cid.startswith(TAG + "-") and float(o.get("filled_qty") or 0) > 0 and o.get("side") == "buy" and o["symbol"] not in tagged:
+        if cid.startswith(tag + "-") and float(o.get("filled_qty") or 0) > 0 and o.get("side") == "buy" and o["symbol"] not in tagged:
             tagged[o["symbol"]] = (o.get("filled_at") or "")[:10]
     held = []
     for p in positions:
@@ -249,11 +249,11 @@ def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetc
     return out
 
 
-def report(call) -> dict:
+def report(call, tag: str = TAG, stop_fraction: float = STOP_FRACTION) -> dict:
     """Closed trades of this strategy from the broker's own orders: tagged entry, then its filled stop leg or its tagged exit sell."""
     closed = call("GET", "/v2/orders?status=closed&limit=500&nested=true&direction=asc")
-    entries = [o for o in closed if (o.get("client_order_id") or "").startswith(TAG + "-") and o.get("side") == "buy" and float(o.get("filled_qty") or 0) > 0]
-    exits = [o for o in closed if (o.get("client_order_id") or "").startswith(TAG + "x-") and o.get("side") == "sell" and float(o.get("filled_qty") or 0) > 0]
+    entries = [o for o in closed if (o.get("client_order_id") or "").startswith(tag + "-") and o.get("side") == "buy" and float(o.get("filled_qty") or 0) > 0]
+    exits = [o for o in closed if (o.get("client_order_id") or "").startswith(tag + "x-") and o.get("side") == "sell" and float(o.get("filled_qty") or 0) > 0]
     used, trades = set(), []
     for e in sorted(entries, key=lambda o: o.get("filled_at") or ""):
         qty, px = float(e["filled_qty"]), float(e["filled_avg_price"])
@@ -270,7 +270,7 @@ def report(call) -> dict:
         gap = None
         stop_leg = next((l for l in (e.get("legs") or []) if l.get("side") == "sell" and l.get("stop_price")), None)
         if stop_leg:  # the stop sits at 90 percent of the signal close, so the signal close is recoverable from the order itself
-            gap = round(cm.realized_slippage_bps("buy", float(stop_leg["stop_price"]) / STOP_FRACTION, px), 1)
+            gap = round(cm.realized_slippage_bps("buy", float(stop_leg["stop_price"]) / stop_fraction, px), 1)
         trades.append({"sym": e["symbol"], "entry": px, "exit": xp, "qty": qty, "how": how, "pnl": round((xp - px) * qty, 2), "ret_pct": round(100 * (xp / px - 1), 3),
                        "entry_gap_bps": gap})
     n = len(trades)
