@@ -13,6 +13,10 @@ Protocol (frozen in Agentic-Lab system/06-research/specs/S-042-forward-protocol.
     sell is queued for the next open.
   * Paper host only, HALT kill switch, dry run unless --submit, and orders are only sent while the market is CLOSED (so queued orders
     fill at the next open, as the executable-exit analysis assumed). Stocks only, no shorting.
+Safety nets added later (they only ever REMOVE candidates or add information):
+  * data gate (consumer/data_gate.py): a candidate whose bars fail a quality check (unadjusted split look, gaps, bad prints) is quarantined.
+  * corporate actions: a candidate with a split, merger or spin-off ex date in the next 7 days is skipped (fail-soft if the endpoint errors).
+  * cost model (consumer/cost_model.py): each candidate carries an expected one-side cost estimate; report adds realised entry gap in bps.
 Commands: signals (read only), run [--submit], report (closed trades and totals from the broker's own orders).
 """
 from __future__ import annotations
@@ -27,6 +31,8 @@ from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 from consumer import alpaca_paper as ap
+from consumer import cost_model as cm
+from consumer import data_gate as dg
 from consumer import oversold_panel as op
 from consumer.alpaca_paper import GuardError
 from feed_pipeline.calendar import is_session, session_close
@@ -115,10 +121,19 @@ def compute_candidates(data: dict, universe: list, asof: date) -> dict:
             continue
         if not op.signal("V2", i, ind, d, stress):
             continue
-        cands.append({"sym": sym, "close": d["c"][i], "rsi2": ind["rsi2"][i], "z": ind["z"][i], "adv20": ind["adv20"][i], "v3": bool(stress)})
+        cand = {"sym": sym, "close": d["c"][i], "rsi2": ind["rsi2"][i], "z": ind["z"][i], "adv20": ind["adv20"][i], "v3": bool(stress)}
+        cand["est_cost_bps"] = round(cm.expected_cost_bps(cand["close"], NOTIONAL_USD, cand["adv20"], cm.daily_vol(d["c"])), 2)
+        cands.append(cand)
     cands.sort(key=lambda c: (c["rsi2"], c["z"], c["sym"]))
-    return {"asof": asof.isoformat(), "stress": bool(stress), "v2_signals": len(cands), "candidates": [c for c in cands if c["v3"]],
-            "stale": stale, "short_history": short}
+    # data-quality gate: a bad bar looks exactly like a perfect oversold signal, so check the series of every candidate
+    quarantine = {}
+    for c in cands:
+        issues = dg.check_series(data[c["sym"]], asof)
+        if issues:
+            quarantine[c["sym"]] = issues
+    kept = [c for c in cands if c["sym"] not in quarantine]
+    return {"asof": asof.isoformat(), "stress": bool(stress), "v2_signals": len(kept), "candidates": [c for c in kept if c["v3"]],
+            "stale": stale, "short_history": short, "quarantined": quarantine}
 
 
 def plan_exits(held: list, data: dict, asof: date) -> list:
@@ -179,6 +194,7 @@ def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetc
     start = asof - timedelta(days=HISTORY_DAYS)
     data = trim((fetch or fetch_daily)(call, sorted(set(universe) | {"SPY"}), start, now - timedelta(minutes=20)), asof)
     sig = compute_candidates(data, universe, asof)
+    ca = dg.upcoming_actions(call, [c["sym"] for c in sig["candidates"]], asof) if sig["candidates"] else {"actions": {}, "error": None}
     st = broker_state(call)
     clock = call("GET", "/v2/clock")
     exits = plan_exits(st["held"], data, asof)
@@ -189,7 +205,9 @@ def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetc
     slots = max(0, POSITION_CAP - open_count)
     chosen, skipped = [], []
     for c in sig["candidates"]:
-        if c["sym"] in busy:
+        if c["sym"] in ca["actions"]:
+            skipped.append({"sym": c["sym"], "why": "CORPORATE_ACTION_SOON"})
+        elif c["sym"] in busy:
             skipped.append({"sym": c["sym"], "why": "ALREADY_HELD_OR_PENDING"})
         elif len(chosen) < slots:
             try:
@@ -201,7 +219,9 @@ def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetc
     market_open = bool(clock.get("is_open"))
     out = {"asof": sig["asof"], "stress": sig["stress"], "v2_signals": sig["v2_signals"], "v3_signals": len(sig["candidates"]), "slots": slots,
            "market_open": market_open, "submit": bool(submit), "exits": [{k: e[k] for k in ("sym", "action", "reason") if k in e} for e in exits],
-           "entries": [b for _, b in chosen], "skipped": skipped, "stale_symbols": len(sig["stale"]), "orders": []}
+           "entries": [b for _, b in chosen], "skipped": skipped, "stale_symbols": len(sig["stale"]), "orders": [],
+           "quarantined": sig["quarantined"], "corporate_actions_error": ca["error"],
+           "est_cost_bps": {c["sym"]: c["est_cost_bps"] for c, _ in chosen}}
     if not submit:
         out["note"] = "dry run: nothing was sent"
         return out
@@ -247,11 +267,17 @@ def report(call) -> dict:
         if ex is None:
             continue
         xp = float(ex["filled_avg_price"])
-        trades.append({"sym": e["symbol"], "entry": px, "exit": xp, "qty": qty, "how": how, "pnl": round((xp - px) * qty, 2), "ret_pct": round(100 * (xp / px - 1), 3)})
+        gap = None
+        stop_leg = next((l for l in (e.get("legs") or []) if l.get("side") == "sell" and l.get("stop_price")), None)
+        if stop_leg:  # the stop sits at 90 percent of the signal close, so the signal close is recoverable from the order itself
+            gap = round(cm.realized_slippage_bps("buy", float(stop_leg["stop_price"]) / STOP_FRACTION, px), 1)
+        trades.append({"sym": e["symbol"], "entry": px, "exit": xp, "qty": qty, "how": how, "pnl": round((xp - px) * qty, 2), "ret_pct": round(100 * (xp / px - 1), 3),
+                       "entry_gap_bps": gap})
     n = len(trades)
     held = [p for p in call("GET", "/v2/positions") if any((e["symbol"] == p.get("symbol")) for e in entries)]
     return {"closed_trades": n, "total_pnl": round(sum(t["pnl"] for t in trades), 2), "mean_ret_pct": round(sum(t["ret_pct"] for t in trades) / n, 3) if n else None,
-            "stops": sum(1 for t in trades if t["how"] == "STOP"), "open_positions": len(held), "trades": trades[-10:]}
+            "stops": sum(1 for t in trades if t["how"] == "STOP"), "open_positions": len(held), "trades": trades[-10:],
+            "entry_gap_vs_signal_close_bps": cm.summarize([t["entry_gap_bps"] for t in trades if t["entry_gap_bps"] is not None])}
 
 
 def main(argv=None, call=None, now=None, fetch=None) -> int:
@@ -276,7 +302,7 @@ def main(argv=None, call=None, now=None, fetch=None) -> int:
             asof = last_complete_session(now)
             data = trim((fetch or fetch_daily)(call, sorted(set(universe) | {"SPY"}), asof - timedelta(days=HISTORY_DAYS), now - timedelta(minutes=20)), asof)
             sig = compute_candidates(data, universe, asof)
-            result = {k: sig[k] for k in ("asof", "stress", "v2_signals")} | {"v3_signals": len(sig["candidates"]), "top": sig["candidates"][:15], "stale_symbols": len(sig["stale"])}
+            result = {k: sig[k] for k in ("asof", "stress", "v2_signals", "quarantined")} | {"v3_signals": len(sig["candidates"]), "top": sig["candidates"][:15], "stale_symbols": len(sig["stale"])}
         else:
             result = run(call, universe, now, Path(args.state_dir), args.submit, fetch)
     except GuardError as exc:

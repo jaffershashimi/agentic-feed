@@ -50,6 +50,7 @@ class Fake:
     def __init__(self, positions=(), open_orders=(), closed=(), is_open=False):
         self.positions, self.open_orders, self.closed, self.is_open = list(positions), list(open_orders), list(closed), is_open
         self.calls = []
+        self.splits, self.actions_error = [], False
 
     def __call__(self, method, path, body=None, host="paper"):
         self.calls.append((method, path, body))
@@ -61,6 +62,10 @@ class Fake:
             return self.closed
         if path == "/v2/clock":
             return {"is_open": self.is_open}
+        if path.startswith("/v1/corporate-actions"):
+            if self.actions_error:
+                raise ap.GuardError("HTTP 500")
+            return {"corporate_actions": {"forward_splits": [{"symbol": s, "ex_date": "2026-11-17"} for s in self.splits]}}
         if method == "POST" and path == "/v2/orders":
             order = {"id": f"id-{len(self.calls)}", "status": "accepted", "symbol": body["symbol"], "side": body["side"], "client_order_id": body["client_order_id"]}
             if body["side"] == "buy":
@@ -230,6 +235,36 @@ class RunTests(unittest.TestCase):
         sells = [b for b in fake.posts() if b["side"] == "sell"]
         self.assertEqual((len(sells), sells[0]["symbol"], sells[0]["qty"], sells[0]["time_in_force"]), (1, "HELD", "7", "day"))
         self.assertEqual(out["exits"][0]["reason"], "CLOSE_ABOVE_SMA5")
+
+    def test_corporate_action_soon_skips_the_name_and_endpoint_errors_are_soft(self):
+        fake = Fake()
+        fake.splits = ["AAA"]
+        out = self.go(fake)
+        self.assertEqual([b["symbol"] for b in fake.posts()], ["CCC"])
+        self.assertIn({"sym": "AAA", "why": "CORPORATE_ACTION_SOON"}, out["skipped"])
+        broken = Fake()
+        broken.actions_error = True
+        out = self.go(broken)
+        self.assertEqual(sorted(b["symbol"] for b in broken.posts()), ["AAA", "CCC"])
+        self.assertIn("500", out["corporate_actions_error"])
+
+    def test_a_bad_series_is_quarantined_before_it_can_signal(self):
+        m = market()
+        c = list(m["AAA"]["c"])
+        c[-1] = c[-2] * 0.5  # looks like an unadjusted 2-for-1 split on the signal day
+        m["AAA"] = series(c)
+        sig = of.compute_candidates(m, ["AAA", "BBB", "CCC"], ASOF)
+        self.assertIn("SPLIT_SUSPECT", sig["quarantined"].get("AAA", []))
+        self.assertNotIn("AAA", [x["sym"] for x in sig["candidates"]])
+
+    def test_candidates_carry_a_cost_estimate_and_the_report_shows_entry_gap(self):
+        sig = of.compute_candidates(market(), ["AAA", "CCC"], ASOF)
+        self.assertTrue(all(c["est_cost_bps"] > 0 for c in sig["candidates"]))
+        closed = [{"id": "e1", "client_order_id": "s042v3-AAA-261106", "side": "buy", "symbol": "AAA", "filled_qty": "10", "filled_avg_price": "90.10",
+                   "filled_at": "2026-11-09T14:30:00Z", "legs": [{"side": "sell", "filled_qty": "10", "filled_avg_price": "95", "stop_price": "81.00"}]}]
+        r = of.report(Fake(closed=closed))
+        self.assertAlmostEqual(r["trades"][0]["entry_gap_bps"], 11.1, places=1)
+        self.assertEqual(r["entry_gap_vs_signal_close_bps"]["n"], 1)
 
     def test_halt_blocks_everything(self):
         (self.state / "HALT").write_text("x")
