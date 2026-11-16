@@ -7,3 +7,6 @@ __pycache__/
 feed/*.lock
 feed/*.tmp
 __pycache__/
+
+# Local Alpaca paper tool state (order log). Account data: never commit.
+.alpaca_paper/
