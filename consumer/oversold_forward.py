@@ -1,0 +1,290 @@
+"""S-042 forward observation (stress variant V3) on the Alpaca PAPER account. TEST ONLY, BROKER_PAPER class.
+
+Runs once a day after the close (from the existing 2:15 PM review; no schedule of its own). It reads recent daily bars for a fixed
+universe, computes the frozen S-042 V3 signal at the last completed session, manages exits for positions it opened, and queues
+orders for the NEXT open. State lives on the broker: every entry carries client_order_id `s042v3-SYMBOL-YYMMDD`.
+
+Protocol (frozen in Agentic-Lab system/06-research/specs/S-042-forward-protocol.md):
+  * Signal at the close of day t: eligible stock, z-score of the 25-day deviation <= -2 and SPY 20-day realized vol above its 75th
+    percentile of the previous 252 values (the exact functions of consumer/oversold_panel.py).
+  * Entry: market buy, day order, queued for the next open, whole shares up to 1,000 USD, OTO stop at 90 percent of the signal close.
+  * At most 10 open positions of this strategy; ranking when more signals: lowest RSI2, then most negative z, then symbol.
+  * Exit decided at a close: close above SMA5, or the 5th session since entry (entry day counts as day 1). The stop is cancelled and a market
+    sell is queued for the next open.
+  * Paper host only, HALT kill switch, dry run unless --submit, and orders are only sent while the market is CLOSED (so queued orders
+    fill at the next open, as the executable-exit analysis assumed). Stocks only, no shorting.
+Commands: signals (read only), run [--submit], report (closed trades and totals from the broker's own orders).
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import math
+import os
+import sys
+import urllib.parse
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+
+from consumer import alpaca_paper as ap
+from consumer import oversold_panel as op
+from consumer.alpaca_paper import GuardError
+from feed_pipeline.calendar import is_session, session_close
+
+TAG = "s042v3"
+POSITION_CAP = 10
+NOTIONAL_USD = 1000.0
+STOP_FRACTION = 0.90
+HISTORY_DAYS = 430
+HOLD_DAYS = op.MAX_DAYS
+
+
+def load_universe(path: Path) -> list:
+    syms = sorted({ln.split("#")[0].strip().upper() for ln in Path(path).read_text(encoding="utf-8").splitlines() if ln.split("#")[0].strip()})
+    if not syms:
+        raise GuardError("refused: the universe file is empty")
+    return syms
+
+
+def last_complete_session(now: datetime) -> date:
+    """Latest session whose close is at least 16 minutes in the past (the SIP delay on the free plan plus a minute)."""
+    d = now.astimezone(timezone.utc).date()
+    for _ in range(10):
+        if is_session(d) and session_close(d) + timedelta(minutes=16) <= now:
+            return d
+        d -= timedelta(days=1)
+    raise GuardError("no completed session found in the last 10 days")
+
+
+def fetch_daily(call, symbols, start: date, end: datetime) -> dict:
+    out = {}
+    syms = list(symbols)
+    for i in range(0, len(syms), 25):
+        tok = None
+        while True:
+            q = {"symbols": ",".join(syms[i:i + 25]), "timeframe": "1Day", "start": start.isoformat(), "end": end.strftime("%Y-%m-%dT%H:%M:%SZ"),
+                 "adjustment": "all", "feed": "sip", "limit": "10000", "sort": "asc"}
+            if tok:
+                q["page_token"] = tok
+            j = call("GET", "/v2/stocks/bars?" + urllib.parse.urlencode(q), None, "data")
+            for s, bs in (j.get("bars") or {}).items():
+                d = out.setdefault(s, {"date": [], "o": [], "h": [], "l": [], "c": [], "v": []})
+                for b in bs:
+                    d["date"].append(b["t"][:10]); d["o"].append(float(b["o"])); d["h"].append(float(b["h"]))
+                    d["l"].append(float(b["l"])); d["c"].append(float(b["c"])); d["v"].append(float(b["v"]))
+            tok = j.get("next_page_token")
+            if not tok:
+                break
+    return out
+
+
+def trim(data: dict, asof: date) -> dict:
+    """Drop bars after the as-of session (a partial bar of the current day must never be used)."""
+    out = {}
+    cut = asof.isoformat()
+    for s, d in data.items():
+        k = len(d["date"])
+        while k > 0 and d["date"][k - 1] > cut:
+            k -= 1
+        out[s] = {key: vals[:k] for key, vals in d.items()}
+    return out
+
+
+def compute_candidates(data: dict, universe: list, asof: date) -> dict:
+    """Frozen S-042 V2 and V3 signal on the last bar. Returns {'stress', 'candidates', 'stale', 'short_history'}."""
+    spy = data.get("SPY")
+    if not spy or spy["date"][-1] != asof.isoformat():
+        raise GuardError(f"refused: SPY has no bar for {asof} (data not final or feed gap)")
+    stress = op.stress_flags(spy["c"])[-1]
+    uni = {asof.year: set(universe)}
+    cands, stale, short = [], [], []
+    for sym in universe:
+        d = data.get(sym)
+        if not d:
+            continue
+        if d["date"][-1] != asof.isoformat():
+            stale.append(sym)
+            continue
+        if len(d["c"]) <= op.MIN_BARS:
+            short.append(sym)
+            continue
+        ind = op.prepare(d)
+        i = len(d["c"]) - 1
+        d2 = dict(d)
+        if not op.eligible(i, d2, ind, uni, sym):
+            continue
+        if not op.signal("V2", i, ind, d, stress):
+            continue
+        cands.append({"sym": sym, "close": d["c"][i], "rsi2": ind["rsi2"][i], "z": ind["z"][i], "adv20": ind["adv20"][i], "v3": bool(stress)})
+    cands.sort(key=lambda c: (c["rsi2"], c["z"], c["sym"]))
+    return {"asof": asof.isoformat(), "stress": bool(stress), "v2_signals": len(cands), "candidates": [c for c in cands if c["v3"]],
+            "stale": stale, "short_history": short}
+
+
+def plan_exits(held: list, data: dict, asof: date) -> list:
+    """held: [{sym, qty, entry_date}]. Exit when the last close is above SMA5 or the 5th session since entry has been reached."""
+    out = []
+    for p in held:
+        d = data.get(p["sym"])
+        if not d or d["date"][-1] != asof.isoformat():
+            out.append({**p, "action": "HOLD", "reason": "NO_FRESH_DATA"})
+            continue
+        n = len(d["c"])
+        try:
+            idx = d["date"].index(p["entry_date"])
+        except ValueError:
+            out.append({**p, "action": "HOLD", "reason": "ENTRY_DATE_NOT_IN_BARS"})
+            continue
+        hold = n - idx
+        s5 = op.sma(d["c"], 5)[-1]
+        if s5 is not None and d["c"][-1] > s5:
+            out.append({**p, "action": "EXIT", "reason": "CLOSE_ABOVE_SMA5", "hold_days": hold})
+        elif hold >= HOLD_DAYS:
+            out.append({**p, "action": "EXIT", "reason": "TIME_5_SESSIONS", "hold_days": hold})
+        else:
+            out.append({**p, "action": "HOLD", "reason": "INSIDE_RULES", "hold_days": hold})
+    return out
+
+
+def entry_body(c: dict, asof: date) -> dict:
+    qty = math.floor(NOTIONAL_USD / c["close"])
+    if qty < 1:
+        raise GuardError(f"{c['sym']}: one share costs more than {NOTIONAL_USD:.0f} USD")
+    return {"symbol": c["sym"], "qty": str(qty), "side": "buy", "type": "market", "time_in_force": "day", "order_class": "oto",
+            "stop_loss": {"stop_price": f"{round(c['close'] * STOP_FRACTION, 2):.2f}"},
+            "client_order_id": f"{TAG}-{c['sym']}-{asof.strftime('%y%m%d')}"}
+
+
+def broker_state(call) -> dict:
+    positions = call("GET", "/v2/positions")
+    opens = call("GET", "/v2/orders?status=open&limit=200&nested=true")
+    closed = call("GET", "/v2/orders?status=closed&limit=500&nested=true&direction=desc")
+    tagged = {}
+    for o in closed:
+        cid = o.get("client_order_id") or ""
+        if cid.startswith(TAG + "-") and float(o.get("filled_qty") or 0) > 0 and o.get("side") == "buy" and o["symbol"] not in tagged:
+            tagged[o["symbol"]] = (o.get("filled_at") or "")[:10]
+    held = []
+    for p in positions:
+        s = p.get("symbol")
+        if s in tagged:
+            # the entry day is the ET session date of the fill; filled_at is UTC, and market-open fills are the same calendar date
+            held.append({"sym": s, "qty": int(float(p["qty"])), "entry_date": tagged[s]})
+    return {"raw_book": positions, "open_orders": opens, "held": held}
+
+
+def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetch=None) -> dict:
+    ap.check_not_halted(state_dir)
+    asof = last_complete_session(now)
+    start = asof - timedelta(days=HISTORY_DAYS)
+    data = trim((fetch or fetch_daily)(call, sorted(set(universe) | {"SPY"}), start, now - timedelta(minutes=20)), asof)
+    sig = compute_candidates(data, universe, asof)
+    st = broker_state(call)
+    clock = call("GET", "/v2/clock")
+    exits = plan_exits(st["held"], data, asof)
+    leaving = {e["sym"] for e in exits if e["action"] == "EXIT"}
+    busy = {p["symbol"] for p in st["raw_book"]} | {o.get("symbol") for o in st["open_orders"]}
+    pending_entries = {o.get("symbol") for o in st["open_orders"] if (o.get("client_order_id") or "").startswith(TAG + "-") and o.get("side") == "buy"}
+    open_count = len({h["sym"] for h in st["held"]} - leaving) + len(pending_entries)
+    slots = max(0, POSITION_CAP - open_count)
+    chosen, skipped = [], []
+    for c in sig["candidates"]:
+        if c["sym"] in busy:
+            skipped.append({"sym": c["sym"], "why": "ALREADY_HELD_OR_PENDING"})
+        elif len(chosen) < slots:
+            try:
+                chosen.append((c, entry_body(c, asof)))
+            except GuardError as exc:
+                skipped.append({"sym": c["sym"], "why": str(exc)})
+        else:
+            skipped.append({"sym": c["sym"], "why": "NO_FREE_SLOT"})
+    market_open = bool(clock.get("is_open"))
+    out = {"asof": sig["asof"], "stress": sig["stress"], "v2_signals": sig["v2_signals"], "v3_signals": len(sig["candidates"]), "slots": slots,
+           "market_open": market_open, "submit": bool(submit), "exits": [{k: e[k] for k in ("sym", "action", "reason") if k in e} for e in exits],
+           "entries": [b for _, b in chosen], "skipped": skipped, "stale_symbols": len(sig["stale"]), "orders": []}
+    if not submit:
+        out["note"] = "dry run: nothing was sent"
+        return out
+    if market_open:
+        out["note"] = "market is open: nothing sent (orders are only queued while the market is closed)"
+        return out
+    for e in exits:
+        if e["action"] != "EXIT":
+            continue
+        for o in st["open_orders"]:
+            if o.get("symbol") == e["sym"] and o.get("side") == "sell":
+                call("DELETE", f"/v2/orders/{o['id']}")
+            for leg in (o.get("legs") or []):
+                if leg.get("symbol") == e["sym"] and leg.get("side") == "sell":
+                    call("DELETE", f"/v2/orders/{leg['id']}")
+        body = {"symbol": e["sym"], "qty": str(e["qty"]), "side": "sell", "type": "market", "time_in_force": "day",
+                "client_order_id": f"{TAG}x-{e['sym']}-{asof.strftime('%y%m%d')}"}
+        resp = call("POST", "/v2/orders", body)
+        ap.log_event(state_dir, {"action": "s042-exit", "sym": e["sym"], "reason": e["reason"], "order_id": resp.get("id")})
+        out["orders"].append({"sym": e["sym"], "side": "sell", "id": resp.get("id"), "status": resp.get("status")})
+    for c, body in chosen:
+        resp = call("POST", "/v2/orders", body)
+        ap.log_event(state_dir, {"action": "s042-entry", "sym": c["sym"], "z": c["z"], "rsi2": c["rsi2"], "order_id": resp.get("id")})
+        out["orders"].append({"sym": c["sym"], "side": "buy", "id": resp.get("id"), "status": resp.get("status")})
+    return out
+
+
+def report(call) -> dict:
+    """Closed trades of this strategy from the broker's own orders: tagged entry, then its filled stop leg or its tagged exit sell."""
+    closed = call("GET", "/v2/orders?status=closed&limit=500&nested=true&direction=asc")
+    entries = [o for o in closed if (o.get("client_order_id") or "").startswith(TAG + "-") and o.get("side") == "buy" and float(o.get("filled_qty") or 0) > 0]
+    exits = [o for o in closed if (o.get("client_order_id") or "").startswith(TAG + "x-") and o.get("side") == "sell" and float(o.get("filled_qty") or 0) > 0]
+    used, trades = set(), []
+    for e in sorted(entries, key=lambda o: o.get("filled_at") or ""):
+        qty, px = float(e["filled_qty"]), float(e["filled_avg_price"])
+        leg = next((l for l in (e.get("legs") or []) if l.get("side") == "sell" and float(l.get("filled_qty") or 0) > 0), None)
+        how, ex = (("STOP", leg) if leg else (None, None))
+        if ex is None:
+            ex = next((o for o in exits if o["id"] not in used and o["symbol"] == e["symbol"] and (o.get("filled_at") or "") > (e.get("filled_at") or "")), None)
+            how = "RULE_EXIT"
+            if ex is not None:
+                used.add(ex["id"])
+        if ex is None:
+            continue
+        xp = float(ex["filled_avg_price"])
+        trades.append({"sym": e["symbol"], "entry": px, "exit": xp, "qty": qty, "how": how, "pnl": round((xp - px) * qty, 2), "ret_pct": round(100 * (xp / px - 1), 3)})
+    n = len(trades)
+    held = [p for p in call("GET", "/v2/positions") if any((e["symbol"] == p.get("symbol")) for e in entries)]
+    return {"closed_trades": n, "total_pnl": round(sum(t["pnl"] for t in trades), 2), "mean_ret_pct": round(sum(t["ret_pct"] for t in trades) / n, 3) if n else None,
+            "stops": sum(1 for t in trades if t["how"] == "STOP"), "open_positions": len(held), "trades": trades[-10:]}
+
+
+def main(argv=None, call=None, now=None, fetch=None) -> int:
+    p = argparse.ArgumentParser(description="S-042 stress-variant forward observation on the Alpaca paper account.")
+    p.add_argument("--state-dir", default=os.environ.get("ALPACA_PAPER_STATE", ".alpaca_paper"))
+    sub = p.add_subparsers(dest="cmd", required=True)
+    sub.add_parser("report")
+    for name in ("signals", "run"):
+        s = sub.add_parser(name)
+        s.add_argument("--universe", required=True)
+        if name == "run":
+            s.add_argument("--submit", action="store_true")
+    args = p.parse_args(argv)
+    try:
+        call = call or ap.make_client()
+        now = now or datetime.now(timezone.utc)
+        if args.cmd == "report":
+            print(json.dumps(report(call), indent=1, sort_keys=True))
+            return 0
+        universe = load_universe(Path(args.universe))
+        if args.cmd == "signals":
+            asof = last_complete_session(now)
+            data = trim((fetch or fetch_daily)(call, sorted(set(universe) | {"SPY"}), asof - timedelta(days=HISTORY_DAYS), now - timedelta(minutes=20)), asof)
+            sig = compute_candidates(data, universe, asof)
+            result = {k: sig[k] for k in ("asof", "stress", "v2_signals")} | {"v3_signals": len(sig["candidates"]), "top": sig["candidates"][:15], "stale_symbols": len(sig["stale"])}
+        else:
+            result = run(call, universe, now, Path(args.state_dir), args.submit, fetch)
+    except GuardError as exc:
+        print(json.dumps({"error": str(exc)}))
+        return 2
+    print(json.dumps(result, indent=1, sort_keys=True, default=str))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
