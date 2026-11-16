@@ -213,8 +213,14 @@ def main(argv=None, call=None):
     import time as _t
 
     def get_day(d):
-        _t.sleep(0.25)
-        return fetch_day(call, d)
+        for attempt in range(7):
+            _t.sleep(0.4)
+            try:
+                return fetch_day(call, d)
+            except Exception as exc:  # the data API rate-limits (429): wait and retry, give up on anything else
+                if "429" not in str(exc) or attempt == 6:
+                    raise
+                _t.sleep(5 * 2 ** attempt)
 
     res = run(a[0], json.loads(Path(a[1]).read_text()), a[2], get_day)
     print(json.dumps({"events": res["events_scored"], "verdict": res["verdict"]}))

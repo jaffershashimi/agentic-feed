@@ -79,5 +79,104 @@ class DropTests(unittest.TestCase):
             self.assertEqual(json.loads(buf.getvalue())["events"][0]["group"], "NO_NEWS")
 
 
+class FakeBroker:
+    def __init__(self, positions=(), open_orders=(), closed=(), is_open=False):
+        self.positions, self.open_orders, self.closed, self.is_open, self.calls = list(positions), list(open_orders), list(closed), is_open, []
+
+    def __call__(self, method, path, body=None, host="paper"):
+        self.calls.append((method, path, body))
+        if path == "/v2/positions":
+            return self.positions
+        if path.startswith("/v2/orders?status=open"):
+            return self.open_orders
+        if path.startswith("/v2/orders?status=closed"):
+            return self.closed
+        if path == "/v2/clock":
+            return {"is_open": self.is_open}
+        if path.startswith("/v2/assets/"):
+            sym = path.rsplit("/", 1)[1]
+            return {"name": "ProShares UltraPro QQQ" if sym == "LEV" else f"{sym} Corp Common Stock"}
+        if method == "POST" and path == "/v2/orders":
+            o = {"id": f"id{len(self.calls)}", "symbol": body["symbol"], "side": body["side"], "client_order_id": body["client_order_id"]}
+            if body["side"] == "buy":
+                self.open_orders.append(o)
+            return o
+        if method == "DELETE":
+            return {}
+        raise AssertionError(path)
+
+    def posts(self):
+        return [c[2] for c in self.calls if c[0] == "POST"]
+
+
+def drop_market(names):
+    flat = [100.0 + (i % 3) * 0.1 for i in range(59)]
+    m = {"SPY": series(flat + [flat[-1]])}
+    for n in names:
+        m[n] = series(flat + [flat[-1] * 0.88], vol=6e6 if n == "BIG" else 5e6)
+    return m
+
+
+class RunTests(unittest.TestCase):
+    def setUp(self):
+        self._td = tempfile.TemporaryDirectory()
+        self.addCleanup(self._td.cleanup)
+        self.state = Path(self._td.name)
+
+    def go(self, broker, names=("AAA", "BIG"), news=None, submit=True):
+        return ndf.run(broker, list(names), NOW, self.state, submit, lambda c, s, a, b: {k: v for k, v in drop_market(names).items() if k in set(s)}, news or (lambda *a: {}))
+
+    def test_dry_run_sends_nothing_and_only_no_news_drops_are_entries(self):
+        news = lambda *a: {"AAA": [{"headline": "AAA cuts guidance", "summary": "", "symbols": ["AAA"], "created_at": "2026-11-13T15:00:00Z"}]}
+        b = FakeBroker()
+        out = self.go(b, news=news, submit=False)
+        self.assertEqual((out["drops"], out["no_news"], out["news_logged_only"]), (2, 1, 1))
+        self.assertEqual([e["symbol"] for e in out["entries"]], ["BIG"])
+        self.assertEqual(b.posts(), [])
+
+    def test_submit_after_close_queues_one_oto_entry_with_a_12_percent_stop(self):
+        b = FakeBroker()
+        out = self.go(b)
+        posts = b.posts()
+        self.assertEqual(sorted(p["symbol"] for p in posts), ["AAA", "BIG"])
+        p = posts[0]
+        self.assertEqual((p["order_class"], p["time_in_force"], p["type"], p["side"]), ("oto", "day", "market", "buy"))
+        self.assertTrue(p["client_order_id"].startswith("s044n-"))
+        self.assertLessEqual(int(p["qty"]) * 88.0, 5000.0)  # notional cap
+        self.assertEqual(self.go(b)["entries"], [])  # same day again: pending orders are seen
+
+    def test_market_open_halt_and_risk_limits(self):
+        b = FakeBroker(is_open=True)
+        self.assertIn("market is open", self.go(b)["note"])
+        self.assertEqual(b.posts(), [])
+        (self.state / "HALT").write_text("x")
+        with self.assertRaises(ap.GuardError):
+            self.go(FakeBroker())
+        (self.state / "HALT").unlink()
+        pending = [{"symbol": f"P{i}", "side": "buy", "client_order_id": f"s044n-P{i}-261112", "id": f"o{i}"} for i in range(6)]
+        out = self.go(FakeBroker(open_orders=pending))
+        self.assertEqual(out["entries"], [])
+        self.assertTrue(all("limit" in s["why"] or "open" in s["why"] for s in out["skipped"]))
+
+    def test_leveraged_funds_are_not_entries(self):
+        b = FakeBroker()
+        out = self.go(b, names=("AAA", "LEV"))
+        self.assertEqual([p["symbol"] for p in b.posts()], ["AAA"])
+        self.assertIn({"sym": "LEV", "why": "NOT_AN_OPERATING_COMPANY"}, out["skipped"])
+
+    def test_exit_on_the_tenth_session_cancels_the_stop_and_sells(self):
+        d = series([100.0] * 60)
+        entry = d["date"][-10]  # entry day is session 1, so today is session 10
+        b = FakeBroker(positions=[{"symbol": "HELD", "qty": "20", "avg_entry_price": "100"}],
+                       closed=[{"client_order_id": "s044n-HELD-261030", "filled_qty": "20", "side": "buy", "symbol": "HELD", "filled_at": entry + "T14:30:01Z"}],
+                       open_orders=[{"symbol": "HELD", "side": "sell", "id": "stop-1", "client_order_id": "x"}])
+        m = drop_market(["AAA"])
+        m["HELD"] = d
+        out = ndf.run(b, ["AAA", "HELD"], NOW, self.state, True, lambda c, s, a, e: {k: v for k, v in m.items() if k in set(s)}, lambda *a: {})
+        self.assertEqual(out["exits"][0]["reason"], "TIME_10_SESSIONS")
+        self.assertIn(("DELETE", "/v2/orders/stop-1", None), b.calls)
+        self.assertEqual([p["symbol"] for p in b.posts() if p["side"] == "sell"], ["HELD"])
+
+
 if __name__ == "__main__":
     unittest.main()
