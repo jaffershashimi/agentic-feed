@@ -14,6 +14,12 @@
 ## Guardrails
 Paper host only; HALT kill switch; dry run unless `--submit`; orders are sent only while the market is CLOSED, so they queue for the next open (as the executable-exit analysis assumed); stocks only, no shorting; skipped symbols are reported with a reason.
 
+## Safety nets (added Nov 16 2026)
+They only remove candidates or add information; the frozen signal is unchanged.
+* **Data gate** (`consumer/data_gate.py`): a candidate whose bars look wrong (unadjusted split ratio, gaps, bad prints, zero volume) is quarantined and listed in the output.
+* **Corporate actions**: a candidate with a split, merger or spin-off ex date in the next 7 days is skipped as `CORPORATE_ACTION_SOON`. If the endpoint errors the run continues and says so.
+* **Cost model** (`consumer/cost_model.py`): each candidate carries `est_cost_bps` (half spread plus square-root impact). `report` adds `entry_gap_vs_signal_close_bps`, the fill against the signal close recovered from the stop leg.
+
 ## Commands
 ```
 python3.12 -m consumer.oversold_forward signals --universe UNIVERSE.txt      # read only

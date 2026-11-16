@@ -56,5 +56,8 @@ Docs:
 - `docs/RANK_AUDIT.md` (stock-only rank and influence audit of the R2 score; descriptive, TEST ONLY)
 - `docs/BAR_ARCHIVE.md` (testing-mode archive of SIP 5-minute bars with a hash per day; nothing reads from it yet)
 - `docs/ALPACA_PAPER.md` (guardrailed Alpaca paper order tool: paper host only, dry run by default, kill switch)
+- `docs/ROBUSTNESS_TOOLKIT.md` (Deflated Sharpe, overfitting probability, causal HMM regimes, tear sheets, data gate, cost model, overnight monitor)
+- `docs/OPEN_SOURCE_LANDSCAPE.md` (what open-source tools and papers we adopted and what we rejected)
+- `docs/CONNECTORS.md` (read-only Alpaca MCP server and other data connectors)
 - `docs/RECORDS_STORE.md` (append-only, hash-chained copy of the paper records; detects and undoes a stale overwrite)
 - `docs/REPLAY_R2.md`, section "Resolving open trades" (`--resolve`: closes replay trades that entered too late in a session to get an exit)
