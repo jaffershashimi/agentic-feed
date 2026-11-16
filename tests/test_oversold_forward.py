@@ -1,0 +1,261 @@
+import contextlib
+import io
+import json
+import random
+import tempfile
+import unittest
+from datetime import date, datetime, timedelta, timezone
+from pathlib import Path
+
+from consumer import alpaca_paper as ap
+from consumer import oversold_forward as of
+
+ASOF = date(2026, 11, 13)  # a Friday session
+AFTER_CLOSE = datetime(2026, 11, 13, 22, 30, tzinfo=timezone.utc)  # 5:30 PM ET
+
+
+def dates(n, end=ASOF):
+    return [(end - timedelta(days=n - 1 - i)).isoformat() for i in range(n)]
+
+
+def series(closes, vol=1e6, dts=None):
+    n = len(closes)
+    return {"date": dts or dates(n), "o": list(closes), "h": [c * 1.01 for c in closes], "l": [c * 0.99 for c in closes], "c": list(closes), "v": [vol] * n}
+
+
+def spy_stressed(n=330):
+    calm = [100 + 0.01 * i for i in range(n - 30)]
+    return series(calm + [calm[-1] * (1.05 if i % 2 else 0.95) for i in range(30)])
+
+
+def spy_calm(n=330):
+    return series([100 + 0.01 * i for i in range(n)])
+
+
+def stock(crash, n=330, seed=1):
+    rnd = random.Random(seed)
+    px, cs = 100.0, []
+    for _ in range(n - 1):
+        px *= 1 + rnd.gauss(0.0005, 0.01)
+        cs.append(px)
+    cs.append(cs[-1] * (0.70 if crash else 1.0))
+    return series(cs)
+
+
+def market(stressed=True):
+    return {"SPY": spy_stressed() if stressed else spy_calm(), "AAA": stock(True, seed=1), "BBB": stock(False, seed=2), "CCC": stock(True, seed=3)}
+
+
+class Fake:
+    def __init__(self, positions=(), open_orders=(), closed=(), is_open=False):
+        self.positions, self.open_orders, self.closed, self.is_open = list(positions), list(open_orders), list(closed), is_open
+        self.calls = []
+
+    def __call__(self, method, path, body=None, host="paper"):
+        self.calls.append((method, path, body))
+        if path == "/v2/positions":
+            return self.positions
+        if path.startswith("/v2/orders?status=open"):
+            return self.open_orders
+        if path.startswith("/v2/orders?status=closed"):
+            return self.closed
+        if path == "/v2/clock":
+            return {"is_open": self.is_open}
+        if method == "POST" and path == "/v2/orders":
+            order = {"id": f"id-{len(self.calls)}", "status": "accepted", "symbol": body["symbol"], "side": body["side"], "client_order_id": body["client_order_id"]}
+            if body["side"] == "buy":
+                self.open_orders.append(order)
+            return order
+        if method == "DELETE":
+            return {}
+        raise AssertionError(f"unexpected {method} {path}")
+
+    def posts(self):
+        return [c[2] for c in self.calls if c[0] == "POST"]
+
+
+def fetch_for(data):
+    return lambda call, symbols, start, end: {s: d for s, d in data.items() if s in set(symbols)}
+
+
+class SignalTests(unittest.TestCase):
+    def test_oversold_names_signal_and_ranking_is_deterministic(self):
+        sig = of.compute_candidates(market(), ["AAA", "BBB", "CCC"], ASOF)
+        self.assertTrue(sig["stress"])
+        syms = [c["sym"] for c in sig["candidates"]]
+        self.assertEqual(set(syms), {"AAA", "CCC"})
+        self.assertEqual(syms, sorted(syms, key=lambda s: next((c["rsi2"], c["z"], c["sym"]) for c in sig["candidates"] if c["sym"] == s)))
+        self.assertLessEqual(sig["candidates"][0]["z"], -2.0)
+
+    def test_no_v3_signal_without_market_stress_but_v2_still_counts(self):
+        sig = of.compute_candidates(market(stressed=False), ["AAA", "BBB", "CCC"], ASOF)
+        self.assertFalse(sig["stress"])
+        self.assertEqual((sig["v2_signals"], len(sig["candidates"])), (2, 0))
+
+    def test_stale_short_and_ineligible_names_are_reported_or_skipped(self):
+        m = market()
+        m["STALE"] = stock(True, seed=4)
+        m["STALE"]["date"] = dates(330, ASOF - timedelta(days=3))
+        m["SHORT"] = stock(True, n=100, seed=5)
+        m["CHEAP"] = series([4.0] * 329 + [2.5])
+        sig = of.compute_candidates(m, ["AAA", "STALE", "SHORT", "CHEAP"], ASOF)
+        self.assertEqual(sig["stale"], ["STALE"])
+        self.assertEqual(sig["short_history"], ["SHORT"])
+        self.assertNotIn("CHEAP", [c["sym"] for c in sig["candidates"]])
+
+    def test_missing_spy_bar_is_refused(self):
+        m = market()
+        m["SPY"]["date"] = dates(330, ASOF - timedelta(days=1))
+        with self.assertRaises(ap.GuardError):
+            of.compute_candidates(m, ["AAA"], ASOF)
+
+    def test_entry_body_size_stop_and_id(self):
+        b = of.entry_body({"sym": "AAA", "close": 72.5}, ASOF)
+        self.assertEqual((b["qty"], b["order_class"], b["type"], b["time_in_force"], b["side"]), ("13", "oto", "market", "day", "buy"))
+        self.assertEqual((b["stop_loss"]["stop_price"], b["client_order_id"]), ("65.25", "s042v3-AAA-261113"))
+        with self.assertRaises(ap.GuardError):
+            of.entry_body({"sym": "BIG", "close": 1500.0}, ASOF)
+
+
+class TrimTests(unittest.TestCase):
+    def test_a_partial_bar_after_the_asof_session_is_dropped(self):
+        d = {"SPY": series([100, 101, 102]), "X": series([5, 6, 7])}
+        d["SPY"]["date"][-1] = (ASOF + timedelta(days=3)).isoformat()
+        out = of.trim(d, ASOF)
+        self.assertEqual((len(out["SPY"]["c"]), len(out["SPY"]["v"]), len(out["X"]["c"])), (2, 2, 3))
+
+
+class SessionTests(unittest.TestCase):
+    def test_last_complete_session(self):
+        self.assertEqual(of.last_complete_session(AFTER_CLOSE), ASOF)
+        self.assertEqual(of.last_complete_session(datetime(2026, 11, 14, 15, 0, tzinfo=timezone.utc)), ASOF)  # Saturday
+        self.assertEqual(of.last_complete_session(datetime(2026, 11, 13, 21, 5, tzinfo=timezone.utc)), date(2026, 11, 12))  # 5 min after the close
+        self.assertEqual(of.last_complete_session(datetime(2026, 11, 13, 21, 20, tzinfo=timezone.utc)), ASOF)
+
+
+class ExitTests(unittest.TestCase):
+    def data(self, closes):
+        return {"AAA": series(closes)}
+
+    def test_exit_when_close_above_sma5(self):
+        d = self.data([100] * 325 + [90, 90, 90, 90, 95])
+        out = of.plan_exits([{"sym": "AAA", "qty": 5, "entry_date": d["AAA"]["date"][-3]}], d, ASOF)
+        self.assertEqual((out[0]["action"], out[0]["reason"]), ("EXIT", "CLOSE_ABOVE_SMA5"))
+
+    def test_time_exit_on_the_fifth_session_and_hold_before_it(self):
+        flat = [100] * 325 + [90, 89, 88, 87, 86]
+        d = self.data(flat)
+        entry5 = d["AAA"]["date"][-5]
+        self.assertEqual(of.plan_exits([{"sym": "AAA", "qty": 5, "entry_date": entry5}], d, ASOF)[0]["reason"], "TIME_5_SESSIONS")
+        entry3 = d["AAA"]["date"][-3]
+        r = of.plan_exits([{"sym": "AAA", "qty": 5, "entry_date": entry3}], d, ASOF)[0]
+        self.assertEqual((r["action"], r["hold_days"]), ("HOLD", 3))
+
+    def test_missing_or_stale_data_never_exits(self):
+        d = self.data([100] * 330)
+        out = of.plan_exits([{"sym": "ZZZ", "qty": 1, "entry_date": "2026-11-10"}, {"sym": "AAA", "qty": 1, "entry_date": "2020-01-01"}], d, ASOF)
+        self.assertEqual([o["action"] for o in out], ["HOLD", "HOLD"])
+        self.assertEqual([o["reason"] for o in out], ["NO_FRESH_DATA", "ENTRY_DATE_NOT_IN_BARS"])
+
+
+class ReportTests(unittest.TestCase):
+    def test_report_pairs_stop_legs_and_rule_exits_and_ignores_other_orders(self):
+        closed = [
+            {"id": "b1", "client_order_id": "s042v3-AAA-261105", "side": "buy", "symbol": "AAA", "filled_qty": "10", "filled_avg_price": "100", "filled_at": "2026-11-06T14:30:00Z",
+             "legs": [{"side": "sell", "filled_qty": "10", "filled_avg_price": "90", "type": "stop"}]},
+            {"id": "b2", "client_order_id": "s042v3-BBB-261105", "side": "buy", "symbol": "BBB", "filled_qty": "5", "filled_avg_price": "200", "filled_at": "2026-11-06T14:30:00Z",
+             "legs": [{"side": "sell", "filled_qty": "0", "type": "stop"}]},
+            {"id": "x1", "client_order_id": "s042v3x-BBB-261110", "side": "sell", "symbol": "BBB", "filled_qty": "5", "filled_avg_price": "210", "filled_at": "2026-11-10T14:30:00Z"},
+            {"id": "z", "client_order_id": "something-else", "side": "buy", "symbol": "ZZZ", "filled_qty": "1", "filled_avg_price": "5", "filled_at": "2026-11-06T14:30:00Z"},
+            {"id": "b3", "client_order_id": "s042v3-CCC-261112", "side": "buy", "symbol": "CCC", "filled_qty": "3", "filled_avg_price": "50", "filled_at": "2026-11-13T14:30:00Z", "legs": []},
+        ]
+        fake = Fake(positions=[{"symbol": "CCC", "qty": "3"}], closed=closed)
+        fake.closed_orders_path = None
+        r = of.report(fake)
+        self.assertEqual((r["closed_trades"], r["stops"], r["total_pnl"], r["open_positions"]), (2, 1, -50.0, 1))
+        self.assertAlmostEqual(r["mean_ret_pct"], (-10.0 + 5.0) / 2)
+
+    def test_report_with_no_trades_is_empty_not_an_error(self):
+        r = of.report(Fake())
+        self.assertEqual((r["closed_trades"], r["mean_ret_pct"], r["open_positions"]), (0, None, 0))
+
+
+class RunTests(unittest.TestCase):
+    def setUp(self):
+        self._td = tempfile.TemporaryDirectory()
+        self.addCleanup(self._td.cleanup)
+        self.state = Path(self._td.name)
+
+    def go(self, fake, submit=True, data=None):
+        return of.run(fake, ["AAA", "BBB", "CCC"], AFTER_CLOSE, self.state, submit, fetch_for(data or market()))
+
+    def test_dry_run_sends_nothing(self):
+        fake = Fake()
+        out = self.go(fake, submit=False)
+        self.assertEqual((out["v3_signals"], len(out["entries"]), fake.posts()), (2, 2, []))
+
+    def test_submit_while_the_market_is_open_sends_nothing(self):
+        fake = Fake(is_open=True)
+        out = self.go(fake)
+        self.assertEqual(fake.posts(), [])
+        self.assertIn("market is open", out["note"])
+
+    def test_submit_after_close_queues_entries_once(self):
+        fake = Fake()
+        out = self.go(fake)
+        posts = fake.posts()
+        self.assertEqual(sorted(b["symbol"] for b in posts), ["AAA", "CCC"])
+        self.assertTrue(all(b["time_in_force"] == "day" and b["type"] == "market" and b["order_class"] == "oto" for b in posts))
+        again = self.go(fake)  # same day: the pending tagged orders are seen, nothing new goes out
+        self.assertEqual(len(fake.posts()), 2)
+        self.assertEqual({s["why"] for s in again["skipped"]}, {"ALREADY_HELD_OR_PENDING"})
+        self.assertIn("s042-entry", (self.state / "orders.jsonl").read_text())
+
+    def test_position_cap_limits_new_entries(self):
+        pending = [{"symbol": f"P{i}", "side": "buy", "client_order_id": f"s042v3-P{i}-261112", "id": f"o{i}"} for i in range(9)]
+        fake = Fake(open_orders=pending)
+        out = self.go(fake)
+        self.assertEqual((out["slots"], len(out["entries"])), (1, 1))
+        self.assertEqual([s["why"] for s in out["skipped"]], ["NO_FREE_SLOT"])
+
+    def test_exit_cancels_the_stop_and_queues_a_market_sell(self):
+        d = market()
+        d["HELD"] = series([100] * 325 + [90, 90, 90, 90, 95])
+        entry = d["HELD"]["date"][-3]
+        fake = Fake(positions=[{"symbol": "HELD", "qty": "7"}],
+                    closed=[{"client_order_id": "s042v3-HELD-261111", "filled_qty": "7", "side": "buy", "symbol": "HELD", "filled_at": entry + "T14:30:01Z"}],
+                    open_orders=[{"symbol": "HELD", "side": "sell", "id": "stop-1", "client_order_id": "x"}])
+        out = of.run(fake, ["AAA", "BBB", "CCC", "HELD"], AFTER_CLOSE, self.state, True, fetch_for(d))
+        self.assertIn(("DELETE", "/v2/orders/stop-1", None), fake.calls)
+        sells = [b for b in fake.posts() if b["side"] == "sell"]
+        self.assertEqual((len(sells), sells[0]["symbol"], sells[0]["qty"], sells[0]["time_in_force"]), (1, "HELD", "7", "day"))
+        self.assertEqual(out["exits"][0]["reason"], "CLOSE_ABOVE_SMA5")
+
+    def test_halt_blocks_everything(self):
+        (self.state / "HALT").write_text("x")
+        fake = Fake()
+        with self.assertRaises(ap.GuardError):
+            self.go(fake)
+        self.assertEqual(fake.calls, [])
+
+    def test_cli_error_paths_and_universe_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            u = Path(tmp) / "u.txt"
+            u.write_text("aaa\n# comment\nBBB  # trailing\n\nCCC\n")
+            self.assertEqual(of.load_universe(u), ["AAA", "BBB", "CCC"])
+            (Path(tmp) / "e.txt").write_text("# nothing\n")
+            with self.assertRaises(ap.GuardError):
+                of.load_universe(Path(tmp) / "e.txt")
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = of.main(["--state-dir", tmp, "run", "--universe", str(u)], call=Fake(), now=AFTER_CLOSE, fetch=fetch_for(market()))
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads(buf.getvalue())["v3_signals"], 2)
+            buf = io.StringIO()
+            with contextlib.redirect_stdout(buf):
+                code = of.main(["--state-dir", tmp, "signals", "--universe", str(u)], call=Fake(), now=AFTER_CLOSE, fetch=fetch_for(market()))
+            self.assertEqual(code, 0)
+
+
+if __name__ == "__main__":
+    unittest.main()
