@@ -29,6 +29,7 @@ import sys
 import urllib.parse
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 from consumer import alpaca_paper as ap
 from consumer import cost_model as cm
@@ -43,6 +44,11 @@ NOTIONAL_USD = 1000.0
 STOP_FRACTION = 0.90
 HISTORY_DAYS = 430
 HOLD_DAYS = op.MAX_DAYS
+# Owner approved 2026-11-17: execution may use any session. Evidence (engine backtest, 350 sampled trades) favours about
+# 10:00 ET: a marketable limit placed in the regular session, because opening spreads cost about 32 bps and 10:00 ET about 9.
+MORNING_START, MORNING_END = (9, 50), (11, 30)   # ET window in which morning mode may send orders
+LIMIT_SLIP = 0.003            # marketable limit sits 30 bps through the quote
+MAX_QUOTE_SPREAD = 0.01       # skip a name whose quoted spread is wider than 1 percent
 
 
 def load_universe(path: Path) -> list:
@@ -188,7 +194,36 @@ def broker_state(call, tag: str = TAG) -> dict:
     return {"raw_book": positions, "open_orders": opens, "held": held}
 
 
-def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetch=None) -> dict:
+def quotes(call, symbols: list) -> dict:
+    """Latest bid and ask per symbol from the IEX feed (the free plan blocks recent SIP). Missing or crossed quotes are omitted."""
+    out = {}
+    if not symbols:
+        return out
+    raw = call("GET", "/v2/stocks/quotes/latest?feed=iex&symbols=" + ",".join(sorted(symbols)), host="data")
+    for sym, q in (raw.get("quotes") or {}).items():
+        bid, ask = float(q.get("bp") or 0), float(q.get("ap") or 0)
+        if bid > 0 and ask >= bid:
+            out[sym] = (bid, ask)
+    return out
+
+
+def in_morning_window(now: datetime) -> bool:
+    et = now.astimezone(ZoneInfo("America/New_York"))
+    return et.weekday() < 5 and MORNING_START <= (et.hour, et.minute) <= MORNING_END
+
+
+def morning_limit(body: dict, quote, side: str):
+    """Turn an order body into a marketable limit at the current quote, or return (None, reason) if the quote is unusable."""
+    if not quote:
+        return None, "NO_QUOTE"
+    bid, ask = quote
+    if (ask - bid) / ((ask + bid) / 2) > MAX_QUOTE_SPREAD:
+        return None, "QUOTE_TOO_WIDE"
+    px = ask * (1 + LIMIT_SLIP) if side == "buy" else bid * (1 - LIMIT_SLIP)
+    return {**body, "type": "limit", "limit_price": f"{round(px, 2):.2f}"}, None
+
+
+def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetch=None, mode: str = "close") -> dict:
     ap.check_not_halted(state_dir)
     asof = last_complete_session(now)
     start = asof - timedelta(days=HISTORY_DAYS)
@@ -225,9 +260,15 @@ def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetc
     if not submit:
         out["note"] = "dry run: nothing was sent"
         return out
-    if market_open:
+    morning = mode == "morning"
+    out["mode"] = mode
+    if morning and not (market_open and in_morning_window(now)):
+        out["note"] = "morning mode: outside the 09:50-11:30 ET window or the market is closed, nothing sent"
+        return out
+    if not morning and market_open:
         out["note"] = "market is open: nothing sent (orders are only queued while the market is closed)"
         return out
+    qs = quotes(call, [e["sym"] for e in exits if e["action"] == "EXIT"] + [c["sym"] for c, _ in chosen]) if morning else {}
     for e in exits:
         if e["action"] != "EXIT":
             continue
@@ -239,10 +280,20 @@ def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetc
                     call("DELETE", f"/v2/orders/{leg['id']}")
         body = {"symbol": e["sym"], "qty": str(e["qty"]), "side": "sell", "type": "market", "time_in_force": "day",
                 "client_order_id": f"{TAG}x-{e['sym']}-{asof.strftime('%y%m%d')}"}
+        if morning:
+            body, why = morning_limit(body, qs.get(e["sym"]), "sell")
+            if body is None:
+                out["skipped"].append({"sym": e["sym"], "why": "EXIT_" + why})  # held, retried on the next run
+                continue
         resp = call("POST", "/v2/orders", body)
         ap.log_event(state_dir, {"action": "s042-exit", "sym": e["sym"], "reason": e["reason"], "order_id": resp.get("id")})
         out["orders"].append({"sym": e["sym"], "side": "sell", "id": resp.get("id"), "status": resp.get("status")})
     for c, body in chosen:
+        if morning:
+            body, why = morning_limit(body, qs.get(c["sym"]), "buy")
+            if body is None:
+                out["skipped"].append({"sym": c["sym"], "why": "ENTRY_" + why})
+                continue
         resp = call("POST", "/v2/orders", body)
         ap.log_event(state_dir, {"action": "s042-entry", "sym": c["sym"], "z": c["z"], "rsi2": c["rsi2"], "order_id": resp.get("id")})
         out["orders"].append({"sym": c["sym"], "side": "buy", "id": resp.get("id"), "status": resp.get("status")})
@@ -290,6 +341,8 @@ def main(argv=None, call=None, now=None, fetch=None) -> int:
         s.add_argument("--universe", required=True)
         if name == "run":
             s.add_argument("--submit", action="store_true")
+            s.add_argument("--mode", choices=("close", "morning"), default="close",
+                           help="close: queue market orders for the next open (old). morning: marketable limits at about 10:00 ET (owner-approved).")
     args = p.parse_args(argv)
     try:
         call = call or ap.make_client()
@@ -304,7 +357,7 @@ def main(argv=None, call=None, now=None, fetch=None) -> int:
             sig = compute_candidates(data, universe, asof)
             result = {k: sig[k] for k in ("asof", "stress", "v2_signals", "quarantined")} | {"v3_signals": len(sig["candidates"]), "top": sig["candidates"][:15], "stale_symbols": len(sig["stale"])}
         else:
-            result = run(call, universe, now, Path(args.state_dir), args.submit, fetch)
+            result = run(call, universe, now, Path(args.state_dir), args.submit, fetch, args.mode)
     except GuardError as exc:
         print(json.dumps({"error": str(exc)}))
         return 2
