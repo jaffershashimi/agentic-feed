@@ -77,10 +77,11 @@ def cmd_pack(a):
     pack = deskpack.build(ap.make_client(), plan=_load(a.plan) if a.plan else None, gate=_load(a.gate) if a.gate else None, sent=_load(a.sent) if a.sent else None)
     text = deskpack.render(pack)
     print(text)
+    code = 1 if (a.fail_on_red and pack["overall"] == "FAIL") else 0
     if a.summary_file:
         with open(a.summary_file, "a") as f:
             f.write(text + "\n")
-    return 0
+    return code
 
 
 def cmd_limits(a):
@@ -111,6 +112,7 @@ def main(argv=None):
     k.add_argument("--gate")
     k.add_argument("--sent")
     k.add_argument("--summary-file")
+    k.add_argument("--fail-on-red", action="store_true", help="exit 1 when the overall pack is RED (so a scheduled run alerts the owner)")
     sub.add_parser("limits")
     a = p.parse_args(argv)
     return {"backtest": cmd_backtest, "health": cmd_health, "gate": cmd_gate, "pack": cmd_pack, "limits": cmd_limits}[a.cmd](a)

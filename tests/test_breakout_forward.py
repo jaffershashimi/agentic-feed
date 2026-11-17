@@ -127,6 +127,20 @@ class GateTests(Base):
         self.assertEqual(gate.decide(plan, HEALTHY, now=NOW, tag=bf.TAG)["decision"], gate.BLOCK_ENTRIES)
 
 
+class ProtectTests(unittest.TestCase):
+    def test_protect_command_replaces_a_missing_stop_only_with_submit(self):
+        import contextlib, io, json
+        fake = to.Fake(positions=[{"symbol": "AAA", "qty": "18"}], closed=[entry_order("AAA", 18)])
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            self.assertEqual(bf.main(["protect"], call=fake, now=NOW), 0)
+        self.assertEqual((json.loads(buf.getvalue())["missing"], fake.posts()), (1, []))
+        with contextlib.redirect_stdout(io.StringIO()):
+            bf.main(["protect", "--submit"], call=fake, now=NOW)
+        stops = [b for b in fake.posts() if b.get("type") == "stop"]
+        self.assertEqual((len(stops), stops[0]["client_order_id"].startswith("s048b55ms-")), (1, True))
+
+
 class ReportTests(unittest.TestCase):
     def test_report_pairs_stop_guard_fills_and_counts_only_this_strategy(self):
         closed = [entry_order("AAA", 18), {"id": "g1", "client_order_id": "s048b55ms-AAA-261110", "side": "sell", "symbol": "AAA", "filled_qty": "18", "filled_avg_price": "50", "filled_at": "2026-11-10T16:00:00Z"},

@@ -144,6 +144,8 @@ def main(argv=None, call=None, now=None, fetch=None):
     p.add_argument("--state-dir", default=os.environ.get("ALPACA_PAPER_STATE", ".alpaca_paper"))
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("report")
+    pr = sub.add_parser("protect", help="stop guard: re-place any missing broker-side stop (dry run unless --submit)")
+    pr.add_argument("--submit", action="store_true")
     r = sub.add_parser("run")
     r.add_argument("--universe", required=True)
     r.add_argument("--submit", action="store_true")
@@ -152,7 +154,10 @@ def main(argv=None, call=None, now=None, fetch=None):
     try:
         call = call or ap.make_client()
         now = now or datetime.now(timezone.utc)
-        res = report(call) if a.cmd == "report" else run(call, of.load_universe(Path(a.universe)), now, Path(a.state_dir), a.submit, fetch, "morning", entries_allowed=not a.exits_only)
+        if a.cmd == "protect":
+            res = of.ensure_stops(call, of.broker_state(call, TAG), now, a.submit, tag=TAG)
+        else:
+            res = report(call) if a.cmd == "report" else run(call, of.load_universe(Path(a.universe)), now, Path(a.state_dir), a.submit, fetch, "morning", entries_allowed=not a.exits_only)
     except ap.GuardError as exc:
         print(json.dumps({"error": str(exc)}))
         return 2
