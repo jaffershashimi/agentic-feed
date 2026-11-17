@@ -5,6 +5,7 @@
   python3 -m engine.runner gate PLAN.json [--out GATE.json]   # pre-trade gate on the dry-run plan; prints the decision; exit 0 whatever it decides
   python3 -m engine.runner pack [--plan PLAN.json] [--gate GATE.json] [--sent RESULT.json] [--summary-file FILE]   # the desk pack, read only
   python3 -m engine.runner limits                 # the limits register
+  python3 -m engine.runner journal [--private-out FILE]   # decision journal: closed trades settled and reviewed (counts only; rows with names go to the private file)
 """
 import argparse
 import json
@@ -71,6 +72,16 @@ def cmd_gate(a):
     return 0
 
 
+def cmd_journal(a):
+    from consumer import alpaca_paper as ap
+    from engine import journal
+    j = journal.build(ap.make_client())
+    print(journal.render(j))
+    if a.private_out:
+        Path(a.private_out).write_text(json.dumps(j["rows"], indent=1))
+    return 0
+
+
 def cmd_pack(a):
     from consumer import alpaca_paper as ap
     from engine import deskpack
@@ -107,6 +118,8 @@ def main(argv=None):
     g.add_argument("plan")
     g.add_argument("--out")
     g.add_argument("--tag", default="s042v3", help="which strategy's plan this is: s042v3 (default) or s048b55m")
+    jn = sub.add_parser("journal")
+    jn.add_argument("--private-out")
     k = sub.add_parser("pack")
     k.add_argument("--plan")
     k.add_argument("--gate")
@@ -115,7 +128,7 @@ def main(argv=None):
     k.add_argument("--fail-on-red", action="store_true", help="exit 1 when the overall pack is RED (so a scheduled run alerts the owner)")
     sub.add_parser("limits")
     a = p.parse_args(argv)
-    return {"backtest": cmd_backtest, "health": cmd_health, "gate": cmd_gate, "pack": cmd_pack, "limits": cmd_limits}[a.cmd](a)
+    return {"backtest": cmd_backtest, "health": cmd_health, "gate": cmd_gate, "pack": cmd_pack, "limits": cmd_limits, "journal": cmd_journal}[a.cmd](a)
 
 
 if __name__ == "__main__":

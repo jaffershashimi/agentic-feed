@@ -380,7 +380,8 @@ def closed_trades(call, tag: str = TAG, stop_fraction: float = STOP_FRACTION) ->
         if stop_leg:  # the stop sits at 90 percent of the signal close, so the signal close is recoverable from the order itself
             gap = round(cm.realized_slippage_bps("buy", float(stop_leg["stop_price"]) / stop_fraction, px), 1)
         trades.append({"sym": e["symbol"], "entry": px, "exit": xp, "qty": qty, "how": how, "pnl": round((xp - px) * qty, 2), "ret_pct": round(100 * (xp / px - 1), 3),
-                       "entry_gap_bps": gap, "mode": "morning_limit" if e.get("type") == "limit" else "market_at_open"})
+                       "entry_gap_bps": gap, "mode": "morning_limit" if e.get("type") == "limit" else "market_at_open",
+                       "entry_date": (e.get("filled_at") or "")[:10], "exit_date": (ex.get("filled_at") or "")[:10]})
     return trades, entries
 
 
