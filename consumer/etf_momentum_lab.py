@@ -30,7 +30,8 @@ WIN_B_START = date(2010, 1, 4)
 def fetch(out_path):
     rows = []
     for sym in ALL:
-        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?range=max&interval=1d&events=div%2Csplit"
+        # period1 and period2 give true daily bars; range=max silently returns monthly bars for long histories
+        url = f"https://query1.finance.yahoo.com/v8/finance/chart/{sym}?period1=0&period2={int(datetime.now(timezone.utc).timestamp())}&interval=1d&events=div%2Csplit"
         req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
         j = json.loads(urllib.request.urlopen(req, timeout=60).read())
         r = j["chart"]["result"][0]
