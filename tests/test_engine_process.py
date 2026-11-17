@@ -77,7 +77,7 @@ class GateTests(unittest.TestCase):
 
     def test_a_size_just_under_the_cap_passes_and_rounding_does_not_cause_a_false_block(self):
         e = good_plan()["entries"][0]
-        edge = {**e, "qty": "11", "stop_loss": {"stop_price": "81.82"}}   # 11 shares at a 90.91 close is 1,000 USD
+        edge = {**e, "qty": "33", "stop_loss": {"stop_price": "81.82"}}   # 33 shares at a 90.91 close is 3,000 USD
         self.assertEqual(gate.decide(good_plan(entries=[edge]), HEALTHY, now=MORNING)["decision"], gate.PASS)
 
     def test_more_entries_than_free_slots_blocks(self):
@@ -262,7 +262,7 @@ class ReconTests(unittest.TestCase):
         self.assertEqual(recon.reconcile([pos("AAA", 10)], [fresh], NOW)["status"], "OK")
 
     def test_more_s042_positions_than_the_cap_is_a_fail(self):
-        syms = [f"S{i}" for i in range(11)]
+        syms = [f"S{i}" for i in range(of.POSITION_CAP + 1)]
         orders = [buy(s, 1, 10.0, at="2026-11-16T15:00:00Z", cid=f"s042v3-{s}-261116") for s in syms]
         r = recon.reconcile([pos(s, 1) for s in syms], orders, NOW)
         self.assertEqual((r["status"], r["break_counts"]), ("FAIL", {"CAP_BREACH": 1}))
@@ -306,7 +306,7 @@ class RiskReportTests(unittest.TestCase):
 
     def test_concentration_and_exposure_tiers(self):
         r = riskreport.measure(self.ACCOUNT, [{"market_value": "-12000"}, {"market_value": "30000"}], [])
-        self.assertEqual((r["tiers"]["largest_position_pct"], r["tiers"]["gross_exposure_pct"]), ("FAIL", "WARN"))
+        self.assertEqual((r["tiers"]["largest_position_pct"], r["tiers"]["gross_exposure_pct"]), ("FAIL", "OK"))
 
     def test_missing_history_and_empty_book_do_not_crash(self):
         r = riskreport.measure(self.ACCOUNT, [], None)

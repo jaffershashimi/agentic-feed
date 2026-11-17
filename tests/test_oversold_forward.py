@@ -119,10 +119,10 @@ class SignalTests(unittest.TestCase):
 
     def test_entry_body_size_stop_and_id(self):
         b = of.entry_body({"sym": "AAA", "close": 72.5}, ASOF)
-        self.assertEqual((b["qty"], b["order_class"], b["type"], b["time_in_force"], b["side"]), ("13", "oto", "market", "day", "buy"))
+        self.assertEqual((b["qty"], b["order_class"], b["type"], b["time_in_force"], b["side"]), ("41", "oto", "market", "day", "buy"))   # 3,000 USD entry: floor(3000 / 72.5)
         self.assertEqual((b["stop_loss"]["stop_price"], b["client_order_id"]), ("65.25", "s042v3-AAA-261113"))
         with self.assertRaises(ap.GuardError):
-            of.entry_body({"sym": "BIG", "close": 1500.0}, ASOF)
+            of.entry_body({"sym": "BIG", "close": 4000.0}, ASOF)
 
 
 class TrimTests(unittest.TestCase):
@@ -220,7 +220,7 @@ class RunTests(unittest.TestCase):
         self.assertIn("s042-entry", (self.state / "orders.jsonl").read_text())
 
     def test_position_cap_limits_new_entries(self):
-        pending = [{"symbol": f"P{i}", "side": "buy", "client_order_id": f"s042v3-P{i}-261112", "id": f"o{i}"} for i in range(9)]
+        pending = [{"symbol": f"P{i}", "side": "buy", "client_order_id": f"s042v3-P{i}-261112", "id": f"o{i}"} for i in range(of.POSITION_CAP - 1)]
         fake = Fake(open_orders=pending)
         out = self.go(fake)
         self.assertEqual((out["slots"], len(out["entries"])), (1, 1))

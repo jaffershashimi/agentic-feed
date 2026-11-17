@@ -195,8 +195,8 @@ class Scale(Base):
         self.assertLessEqual(len(fake.posts()), of.POSITION_CAP)
 
     def test_open_positions_already_above_the_cap_leave_no_slots(self):
-        held = [{"symbol": f"H{i}", "qty": "1", "avg_entry_price": "10"} for i in range(12)]
-        closed = [{"client_order_id": f"s042v3-H{i}-261110", "filled_qty": "1", "side": "buy", "symbol": f"H{i}", "filled_at": "2026-11-12T14:30:01Z"} for i in range(12)]
+        held = [{"symbol": f"H{i}", "qty": "1", "avg_entry_price": "10"} for i in range(of.POSITION_CAP + 2)]
+        closed = [{"client_order_id": f"s042v3-H{i}-261110", "filled_qty": "1", "side": "buy", "symbol": f"H{i}", "filled_at": "2026-11-12T14:30:01Z"} for i in range(of.POSITION_CAP + 2)]
         fake = to.Fake(positions=held, closed=closed)
         out = of.run(fake, ["AAA", "BBB", "CCC"], to.AFTER_CLOSE, self.state, True, to.fetch_for(to.market()))
         self.assertEqual((out["slots"], fake.posts()), (0, []))

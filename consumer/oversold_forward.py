@@ -39,8 +39,8 @@ from consumer.alpaca_paper import GuardError
 from feed_pipeline.calendar import is_session, session_close
 
 TAG = "s042v3"
-POSITION_CAP = 10
-NOTIONAL_USD = 1000.0
+POSITION_CAP = 20            # owner decision 2026-11-17: was 10, to reach the 100-trade gate faster on the paper account
+NOTIONAL_USD = 3000.0        # owner decision 2026-11-17: was 1,000 USD per entry (paper account of about 100,000 USD)
 STOP_FRACTION = 0.90
 HISTORY_DAYS = 430
 HOLD_DAYS = op.MAX_DAYS

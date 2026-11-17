@@ -101,3 +101,12 @@ Fix, same day: (1) morning entries are `gtc`, so the attached stop is `gtc` too 
 (`ensure_stops`, also `oversold_forward protect [--submit]`) re-places any missing stop for the full quantity as a GTC stop at the stop price the entry recorded, runs on every
 submit and is not stopped by a gate block, because it only reduces risk; its orders carry the tag `s042v3s-` and a fill is recorded as a STOP exit; (3) the 9 open positions were
 re-protected by hand with the same code; (4) `engine health --safe` withholds stock names so a failing check never writes holdings into a GitHub log.
+
+## Owner decision: S-042 paper size and cap (2026-11-17)
+
+Owner (Jaffer), paper account only: use much more of the roughly 100,000 USD paper balance so more trades close sooner. S-042 entries go from 1,000 to **3,000 USD** and the position cap from
+10 to **20** (about 60,000 USD deployed at most; worst case if every 10 percent stop hit is about 6 percent of the account). Reason: on a stress day the strategy often has 20 or more signals and 1 free slot, so
+the bottleneck for the 100-trade gate is the number of trades, not the dollars. Strategy rules, the stop (10 percent below the signal close, now always live), the 5-session time stop and the morning
+limit execution are unchanged. Returns per trade stay comparable across the change; positions opened before it are 1,000 USD each. The engine's own backtest keeps 10 x 1,000 USD because it reports
+per-trade statistics; a 20-slot backtest would select more trades but is not needed for the monitor, which compares per-trade percentages. The proposed report-only gross-exposure tiers moved
+from 30 and 50 percent to 70 and 90 percent so the new normal does not read as an alarm. Nothing is enforced by those tiers.
