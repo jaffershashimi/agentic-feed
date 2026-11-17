@@ -75,7 +75,10 @@ def cmd_gate(a):
 def cmd_journal(a):
     from consumer import alpaca_paper as ap
     from engine import journal
-    j = journal.build(ap.make_client())
+    import os
+    import tempfile
+    from consumer import edgar_events as ee
+    j = journal.build(ap.make_client(), edgar_client=ee.Client(os.environ.get("EDGAR_CACHE") or os.path.join(tempfile.gettempdir(), "edgar_cache")))
     print(journal.render(j))
     if a.private_out:
         Path(a.private_out).write_text(json.dumps(j["rows"], indent=1))
