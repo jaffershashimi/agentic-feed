@@ -51,6 +51,7 @@ class Fake:
         self.positions, self.open_orders, self.closed, self.is_open = list(positions), list(open_orders), list(closed), is_open
         self.calls = []
         self.splits, self.actions_error = [], False
+        self.quote = {"bp": 100.0, "ap": 100.1}
 
     def __call__(self, method, path, body=None, host="paper"):
         self.calls.append((method, path, body))
@@ -62,6 +63,8 @@ class Fake:
             return self.closed
         if path == "/v2/clock":
             return {"is_open": self.is_open}
+        if path.startswith("/v2/stocks/quotes/latest"):
+            return {"quotes": {s: self.quote for s in path.split("symbols=")[1].split(",")}}
         if path.startswith("/v1/corporate-actions"):
             if self.actions_error:
                 raise ap.GuardError("HTTP 500")
@@ -294,3 +297,45 @@ class RunTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MorningModeTests(unittest.TestCase):
+    TUE_10AM = datetime(2026, 11, 17, 15, 0, tzinfo=timezone.utc)  # 10:00 ET
+
+    def setUp(self):
+        self.state = Path(tempfile.mkdtemp())
+
+    def go(self, fake, now=None, data=None):
+        # signals come from the last complete session; the fake market ends on ASOF (Friday) so use a Monday 10:00 ET
+        now = now or datetime(2026, 11, 16, 15, 0, tzinfo=timezone.utc)
+        return of.run(fake, ["AAA", "BBB", "CCC"], now, self.state, True, fetch_for(market()), mode="morning")
+
+    def test_entries_are_marketable_limits_with_a_stop_and_go_once(self):
+        fake = Fake(is_open=True)
+        out = self.go(fake)
+        posts = fake.posts()
+        self.assertEqual(sorted(b["symbol"] for b in posts), ["AAA", "CCC"])
+        for b in posts:
+            self.assertEqual((b["type"], b["time_in_force"], b["order_class"]), ("limit", "day", "oto"))
+            self.assertAlmostEqual(float(b["limit_price"]), round(100.1 * 1.003, 2), places=2)
+            self.assertIn("stop_loss", b)
+        self.go(fake)
+        self.assertEqual(len(fake.posts()), 2)  # idempotent: the second run sees the pending tagged orders
+
+    def test_outside_the_window_or_market_closed_sends_nothing(self):
+        for fake, now in ((Fake(is_open=False), None), (Fake(is_open=True), datetime(2026, 11, 16, 18, 30, tzinfo=timezone.utc))):
+            out = self.go(fake, now)
+            self.assertEqual(fake.posts(), [])
+            self.assertIn("morning mode", out["note"])
+
+    def test_wide_or_missing_quote_skips_the_name(self):
+        fake = Fake(is_open=True)
+        fake.quote = {"bp": 90.0, "ap": 100.0}  # about 10 percent wide
+        out = self.go(fake)
+        self.assertEqual(fake.posts(), [])
+        self.assertEqual({s["why"] for s in out["skipped"]}, {"ENTRY_QUOTE_TOO_WIDE"})
+
+    def test_morning_limit_math(self):
+        body, why = of.morning_limit({"symbol": "X"}, (50.0, 50.1), "sell")
+        self.assertEqual((body["type"], body["limit_price"], why), ("limit", f"{round(50.0 * 0.997, 2):.2f}", None))
+        self.assertEqual(of.morning_limit({}, None, "buy"), (None, "NO_QUOTE"))

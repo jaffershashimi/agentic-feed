@@ -45,3 +45,24 @@ Evidence for the inputs: median quoted spread of the first 10 live names 64 bps 
 | P6 | Real-time layer (always-on machine) | only if a validated strategy needs it | owner decision |
 
 Rule carried forward: no strategy goes forward until its protocol, as written, has an as-implemented backtest in this engine.
+
+## Execution slot and live news (2026-11-17)
+
+**Owner decision (Jaffer, 2026-11-17):** S-042 paper execution may use any session, including extended hours. Engineering
+chooses the slot by evidence, and paper trading only. Live trading stays paused.
+
+What the evidence supports today:
+
+| Slot | Evidence | Status |
+|---|---|---|
+| Market order at the open | measured about 32 bps opening spread, engine result -0.29% per trade | worst option, current fallback |
+| Marketable limit at about 10:00 ET | engine scenario +0.23% per trade, 350-trade timing study | implemented: `oversold_forward run --mode morning` |
+| Opening-auction order | hypothesis (+0.26% if filled at the auction print) | paper experiment `scripts/opg_experiment.py` runs 2026-11-17 night |
+| After hours / pre-market | no backtest, no spread data; limit orders only, stops do not trigger outside the regular session | not used until measured |
+
+Morning mode places a marketable limit 30 bps through the IEX quote for both entries and exits (entries keep the
+10 percent broker-side stop as an OTO leg), refuses a quote wider than 1 percent, only sends inside 09:50 to 11:30 ET,
+and is idempotent: a second run the same day sees the pending and filled tagged orders and sends nothing.
+
+`consumer/news_digest.py` prints live headlines (Yahoo Finance per symbol, MarketWatch/Dow Jones, Fed, Google News)
+for the names we hold or might buy. It is information only: no news rule gates S-042 until one is pre-registered and tested.
