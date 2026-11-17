@@ -2,6 +2,9 @@
 
   python3 -m engine.runner backtest PANEL_DIR OUT_DIR [--entry-gap-bps N] [--slip-bps N] [--dump-trades]
   python3 -m engine.runner health [--json]        # read only; exit 1 on any FAIL
+  python3 -m engine.runner gate PLAN.json [--out GATE.json]   # pre-trade gate on the dry-run plan; prints the decision; exit 0 whatever it decides
+  python3 -m engine.runner pack [--plan PLAN.json] [--gate GATE.json] [--sent RESULT.json] [--summary-file FILE]   # the desk pack, read only
+  python3 -m engine.runner limits                 # the limits register
 """
 import argparse
 import json
@@ -45,6 +48,48 @@ def cmd_health(a):
     return 1 if any(r["status"] == health.FAIL for r in rows) else 0
 
 
+def _load(path):
+    try:
+        return json.loads(Path(path).read_text())
+    except (OSError, ValueError):
+        return None
+
+
+def cmd_gate(a):
+    import os
+    from consumer import alpaca_paper as ap
+    from engine import gate, health
+    plan = _load(a.plan)
+    try:
+        rows = health.check_all(ap.make_client())
+    except Exception:
+        rows = None   # fail closed: the gate treats missing health as a block on new entries
+    result = gate.decide(plan, rows, halted=gate.halted(os.environ.get("ALPACA_PAPER_STATE", ".alpaca_paper")))
+    print(gate.render(result))
+    if a.out:
+        Path(a.out).write_text(json.dumps(result))
+    return 0
+
+
+def cmd_pack(a):
+    from consumer import alpaca_paper as ap
+    from engine import deskpack
+    pack = deskpack.build(ap.make_client(), plan=_load(a.plan) if a.plan else None, gate=_load(a.gate) if a.gate else None, sent=_load(a.sent) if a.sent else None)
+    text = deskpack.render(pack)
+    print(text)
+    if a.summary_file:
+        with open(a.summary_file, "a") as f:
+            f.write(text + "\n")
+    return 0
+
+
+def cmd_limits(a):
+    from engine import limits
+    for r in limits.as_rows():
+        print(f"{'OWNER' if r['owner_set'] else 'PROPOSED':<9} {r['id']:<32} {r['value']!s:<10} {r['unit']}")
+    return 0
+
+
 def main(argv=None):
     p = argparse.ArgumentParser(prog="engine.runner")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -56,8 +101,17 @@ def main(argv=None):
     b.add_argument("--dump-trades", action="store_true", help="also write the as-implemented trade list (private; derived from Alpaca data)")
     h = sub.add_parser("health")
     h.add_argument("--json", action="store_true")
+    g = sub.add_parser("gate")
+    g.add_argument("plan")
+    g.add_argument("--out")
+    k = sub.add_parser("pack")
+    k.add_argument("--plan")
+    k.add_argument("--gate")
+    k.add_argument("--sent")
+    k.add_argument("--summary-file")
+    sub.add_parser("limits")
     a = p.parse_args(argv)
-    return {"backtest": cmd_backtest, "health": cmd_health}[a.cmd](a)
+    return {"backtest": cmd_backtest, "health": cmd_health, "gate": cmd_gate, "pack": cmd_pack, "limits": cmd_limits}[a.cmd](a)
 
 
 if __name__ == "__main__":
