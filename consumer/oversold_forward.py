@@ -223,7 +223,8 @@ def morning_limit(body: dict, quote, side: str):
     return {**body, "type": "limit", "limit_price": f"{round(px, 2):.2f}"}, None
 
 
-def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetch=None, mode: str = "close") -> dict:
+def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetch=None, mode: str = "close", entries_allowed: bool = True) -> dict:
+    """entries_allowed=False is the pre-trade gate's partial block: exits still go out (getting out must always be possible), new entries are skipped and named."""
     ap.check_not_halted(state_dir)
     asof = last_complete_session(now)
     start = asof - timedelta(days=HISTORY_DAYS)
@@ -289,6 +290,9 @@ def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetc
         ap.log_event(state_dir, {"action": "s042-exit", "sym": e["sym"], "reason": e["reason"], "order_id": resp.get("id")})
         out["orders"].append({"sym": e["sym"], "side": "sell", "id": resp.get("id"), "status": resp.get("status")})
     for c, body in chosen:
+        if not entries_allowed:
+            out["skipped"].append({"sym": c["sym"], "why": "ENTRY_BLOCKED_BY_GATE"})
+            continue
         if morning:
             body, why = morning_limit(body, qs.get(c["sym"]), "buy")
             if body is None:
@@ -300,8 +304,8 @@ def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetc
     return out
 
 
-def report(call, tag: str = TAG, stop_fraction: float = STOP_FRACTION) -> dict:
-    """Closed trades of this strategy from the broker's own orders: tagged entry, then its filled stop leg or its tagged exit sell."""
+def closed_trades(call, tag: str = TAG, stop_fraction: float = STOP_FRACTION) -> tuple:
+    """(trades, entry_orders). Every closed trade of this strategy from the broker's own orders: tagged entry, then its filled stop leg or its tagged exit sell."""
     closed = call("GET", "/v2/orders?status=closed&limit=500&nested=true&direction=asc")
     entries = [o for o in closed if (o.get("client_order_id") or "").startswith(tag + "-") and o.get("side") == "buy" and float(o.get("filled_qty") or 0) > 0]
     exits = [o for o in closed if (o.get("client_order_id") or "").startswith(tag + "x-") and o.get("side") == "sell" and float(o.get("filled_qty") or 0) > 0]
@@ -323,7 +327,13 @@ def report(call, tag: str = TAG, stop_fraction: float = STOP_FRACTION) -> dict:
         if stop_leg:  # the stop sits at 90 percent of the signal close, so the signal close is recoverable from the order itself
             gap = round(cm.realized_slippage_bps("buy", float(stop_leg["stop_price"]) / stop_fraction, px), 1)
         trades.append({"sym": e["symbol"], "entry": px, "exit": xp, "qty": qty, "how": how, "pnl": round((xp - px) * qty, 2), "ret_pct": round(100 * (xp / px - 1), 3),
-                       "entry_gap_bps": gap})
+                       "entry_gap_bps": gap, "mode": "morning_limit" if e.get("type") == "limit" else "market_at_open"})
+    return trades, entries
+
+
+def report(call, tag: str = TAG, stop_fraction: float = STOP_FRACTION) -> dict:
+    """Closed trades of this strategy (see closed_trades) with totals."""
+    trades, entries = closed_trades(call, tag, stop_fraction)
     n = len(trades)
     held = [p for p in call("GET", "/v2/positions") if any((e["symbol"] == p.get("symbol")) for e in entries)]
     return {"closed_trades": n, "total_pnl": round(sum(t["pnl"] for t in trades), 2), "mean_ret_pct": round(sum(t["ret_pct"] for t in trades) / n, 3) if n else None,
@@ -341,6 +351,7 @@ def main(argv=None, call=None, now=None, fetch=None) -> int:
         s.add_argument("--universe", required=True)
         if name == "run":
             s.add_argument("--submit", action="store_true")
+            s.add_argument("--exits-only", action="store_true", help="send exits but no new entries (used when the pre-trade gate blocks entries)")
             s.add_argument("--mode", choices=("close", "morning"), default="close",
                            help="close: queue market orders for the next open (old). morning: marketable limits at about 10:00 ET (owner-approved).")
     args = p.parse_args(argv)
@@ -357,7 +368,7 @@ def main(argv=None, call=None, now=None, fetch=None) -> int:
             sig = compute_candidates(data, universe, asof)
             result = {k: sig[k] for k in ("asof", "stress", "v2_signals", "quarantined")} | {"v3_signals": len(sig["candidates"]), "top": sig["candidates"][:15], "stale_symbols": len(sig["stale"])}
         else:
-            result = run(call, universe, now, Path(args.state_dir), args.submit, fetch, args.mode)
+            result = run(call, universe, now, Path(args.state_dir), args.submit, fetch, args.mode, entries_allowed=not args.exits_only)
     except GuardError as exc:
         print(json.dumps({"error": str(exc)}))
         return 2

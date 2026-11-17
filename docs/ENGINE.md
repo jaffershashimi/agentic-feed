@@ -66,3 +66,27 @@ and is idempotent: a second run the same day sees the pending and filled tagged 
 
 `consumer/news_digest.py` prints live headlines (Yahoo Finance per symbol, MarketWatch/Dow Jones, Fed, Google News)
 for the names we hold or might buy. It is information only: no news rule gates S-042 until one is pre-registered and tested.
+
+
+## Desk process layer (2026-11-17)
+
+Added after a review of how institutional desks run their day (pre-trade controls, post-trade cost analysis, daily reconciliation, limit tiers, model monitoring).
+The nine stages and who owns each are in the hub's `docs/PROCESS.md`. Code here:
+
+| Stage | Module | Command | What it does | Can it send an order? |
+|---|---|---|---|---|
+| Limits | `engine/limits.py` | `python3 -m engine.runner limits` | one register of every limit, read from the code that enforces it; owner-set vs proposed | no |
+| 3 Pre-trade gate | `engine/gate.py` | `python3 -m engine.runner gate PLAN.json` | reviews the dry-run plan: kill switch, window, free slots, size cap, stop attached, tag, duplicates, corporate-action data, health. Fails closed | no |
+| 4 Execution | `consumer/oversold_forward.py` | `run --mode morning --submit [--exits-only]` | unchanged rules; `--exits-only` lets a gate block stop new entries while exits still go out | yes (paper, existing guards) |
+| 5 Post-trade cost | `engine/tca.py` | via `pack` | shortfall against the signal close and against arrival, fill rate, split by execution mode | no |
+| 6 Reconciliation | `engine/recon.py` | via `pack` | broker positions against tagged orders: quantity breaks, unexplained, missing, overdue, cap breach | no |
+| 7 Risk limits | `engine/riskreport.py` | via `pack` | day result, drawdown from the peak, gross and single-name exposure against proposed tiers (report only) | no |
+| 8 Model monitoring | `engine/monitor.py` | via `pack` | cost drift, return drift, fill rate, plumbing, evidence progress | no |
+| All | `engine/deskpack.py` | `python3 -m engine.runner pack` | one pack, counts and percentages only | no |
+
+Design rules: the gate and the pack never change a plan or a strategy rule; a RED tier is a request for the owner's decision, not an action; logs hold counts, percentages
+and check names, never symbols or dollar amounts; every stage reads the broker's own records, so nothing depends on a chat session being alive.
+
+First live reading (paper account, read only, 2026-11-17): the 10 measured legacy entries (market orders at the open) cost a mean 36.4 bps against the first
+one-minute bar at the open; the engine had modeled that mode at 32 bps. The 9 bps morning-limit model has no fills yet and is judged separately once the first
+10 morning entries exist. Reconciliation found no breaks across the 9 open positions.
