@@ -273,6 +273,11 @@ class ReconTests(unittest.TestCase):
         self.assertIn("HISTORY_TRUNCATED", r["break_counts"])
         self.assertNotIn("MISSING_POSITION", r["break_counts"])
 
+    def test_a_stop_guard_stop_that_filled_nets_the_position_to_zero(self):
+        entry = buy("AAA", 10, 100.0, at="2026-11-10T15:00:00Z")
+        stopfill = sell("AAA", 10, 90.0, cid="s042v3s-AAA-261112")
+        self.assertEqual(recon.reconcile([], [entry, stopfill], NOW)["breaks"], [])
+
     def test_experiment_orders_with_a_close_pair_net_to_zero(self):
         a = buy("AAA", 1, 100.0, cid="xlab-aaa-opg_market", at="2026-11-17T14:30:00Z")
         b = sell("AAA", 1, 100.1, cid="xlab-aaa-close")

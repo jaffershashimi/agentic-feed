@@ -80,6 +80,18 @@ def check_all(call, now=None):
     return rows
 
 
-def render(rows):
+NAMED_CHECKS = {"stops present", "orphan orders", "stale pending entries"}   # their details can list the stocks we hold or trade
+
+
+def redact(row):
+    """Detail with the stock names removed: 'NO FULL STOP on: A, B' becomes 'NO FULL STOP on: 2 name(s) withheld'. For logs that live on GitHub."""
+    d = row["detail"]
+    if row["check"] in NAMED_CHECKS and row["status"] != OK and ": " in d:
+        head, names = d.rsplit(": ", 1)
+        return f"{head}: {len(names.split(', '))} name(s) withheld"
+    return d
+
+
+def render(rows, safe=False):
     w = max(len(r["check"]) for r in rows)
-    return "\n".join(f"{r['status']:<5} {r['check']:<{w}}  {r['detail']}" for r in rows)
+    return "\n".join(f"{r['status']:<5} {r['check']:<{w}}  {redact(r) if safe else r['detail']}" for r in rows)

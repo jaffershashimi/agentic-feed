@@ -90,3 +90,14 @@ and check names, never symbols or dollar amounts; every stage reads the broker's
 First live reading (paper account, read only, 2026-11-17): the 10 measured legacy entries (market orders at the open) cost a mean 36.4 bps against the first
 one-minute bar at the open; the engine had modeled that mode at 32 bps. The 9 bps morning-limit model has no fills yet and is judged separately once the first
 10 morning entries exist. Reconciliation found no breaks across the 9 open positions.
+
+## Finding: entry stops expired at the close (2026-11-17), and the fix
+
+The first after-close health run after the desk process went live reported no stop on any of the 9 open positions. Cause: the stop attached to each entry (an OTO leg) inherits the
+entry's time in force, and entries were `day` orders, so every stop expired at 4 PM and nothing re-placed it. Positions were unprotected overnight; earlier "stops present" results
+were true only because those checks ran before the close. The backtest assumed a stop that is always live, so any gap beyond 10 percent overnight was never capped in live trading.
+
+Fix, same day: (1) morning entries are `gtc`, so the attached stop is `gtc` too (tested on the paper account: a GTC parent gives a GTC stop leg); (2) a stop guard
+(`ensure_stops`, also `oversold_forward protect [--submit]`) re-places any missing stop for the full quantity as a GTC stop at the stop price the entry recorded, runs on every
+submit and is not stopped by a gate block, because it only reduces risk; its orders carry the tag `s042v3s-` and a fill is recorded as a STOP exit; (3) the 9 open positions were
+re-protected by hand with the same code; (4) `engine health --safe` withholds stock names so a failing check never writes holdings into a GitHub log.

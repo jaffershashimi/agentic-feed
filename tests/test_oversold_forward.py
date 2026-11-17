@@ -316,7 +316,7 @@ class MorningModeTests(unittest.TestCase):
         posts = fake.posts()
         self.assertEqual(sorted(b["symbol"] for b in posts), ["AAA", "CCC"])
         for b in posts:
-            self.assertEqual((b["type"], b["time_in_force"], b["order_class"]), ("limit", "day", "oto"))
+            self.assertEqual((b["type"], b["time_in_force"], b["order_class"]), ("limit", "gtc", "oto"))   # gtc, so the attached stop outlives the session
             self.assertAlmostEqual(float(b["limit_price"]), round(100.1 * 1.003, 2), places=2)
             self.assertIn("stop_loss", b)
         self.go(fake)
@@ -335,7 +335,80 @@ class MorningModeTests(unittest.TestCase):
         self.assertEqual(fake.posts(), [])
         self.assertEqual({s["why"] for s in out["skipped"]}, {"ENTRY_QUOTE_TOO_WIDE"})
 
+    def test_morning_exit_sells_stay_day_orders(self):
+        body, why = of.morning_limit({"symbol": "X", "qty": "5", "side": "sell", "type": "market", "time_in_force": "day"}, (100.0, 100.2), "sell")
+        self.assertEqual((body["time_in_force"], why), ("day", None))
+
     def test_morning_limit_math(self):
         body, why = of.morning_limit({"symbol": "X"}, (50.0, 50.1), "sell")
         self.assertEqual((body["type"], body["limit_price"], why), ("limit", f"{round(50.0 * 0.997, 2):.2f}", None))
         self.assertEqual(of.morning_limit({}, None, "buy"), (None, "NO_QUOTE"))
+
+
+HELD_ENTRY = {"id": "e1", "client_order_id": "s042v3-HELD-261110", "side": "buy", "symbol": "HELD", "filled_qty": "7", "filled_avg_price": "100", "filled_at": "2026-11-10T15:00:00Z",
+              "legs": [{"side": "sell", "type": "stop", "stop_price": "90.00", "status": "expired", "filled_qty": "0"}]}
+NOW_MORNING = datetime(2026, 11, 18, 15, 5, tzinfo=timezone.utc)
+
+
+class StopGuardTests(unittest.TestCase):
+    def state(self, fake):
+        return of.broker_state(fake)
+
+    def test_a_position_with_no_live_stop_gets_a_gtc_stop_at_the_recorded_price(self):
+        fake = Fake(positions=[{"symbol": "HELD", "qty": "7"}], closed=[HELD_ENTRY])
+        out = of.ensure_stops(fake, self.state(fake), NOW_MORNING, True)
+        self.assertEqual((out["missing"], len(out["placed"]), out["skipped"]), (1, 1, []))
+        b = fake.posts()[0]
+        self.assertEqual((b["symbol"], b["qty"], b["side"], b["type"], b["time_in_force"], b["stop_price"], b["client_order_id"]), ("HELD", "7", "sell", "stop", "gtc", "90.00", "s042v3s-HELD-261118"))
+
+    def test_covered_positions_get_nothing_and_a_partial_cover_gets_the_difference(self):
+        live = {"symbol": "HELD", "side": "sell", "type": "stop", "qty": "7", "status": "new", "legs": []}
+        fake = Fake(positions=[{"symbol": "HELD", "qty": "7"}], closed=[HELD_ENTRY], open_orders=[live])
+        self.assertEqual(of.ensure_stops(fake, self.state(fake), NOW_MORNING, True)["missing"], 0)
+        self.assertEqual(fake.posts(), [])
+        fake = Fake(positions=[{"symbol": "HELD", "qty": "7"}], closed=[HELD_ENTRY], open_orders=[{**live, "qty": "3"}])
+        of.ensure_stops(fake, self.state(fake), NOW_MORNING, True)
+        self.assertEqual(fake.posts()[0]["qty"], "4")
+
+    def test_a_stop_leg_nested_in_a_pending_parent_counts_as_cover(self):
+        parent = {"symbol": "HELD", "side": "buy", "type": "limit", "status": "filled", "legs": [{"symbol": "HELD", "side": "sell", "type": "stop", "qty": "7", "status": "held"}]}
+        fake = Fake(positions=[{"symbol": "HELD", "qty": "7"}], closed=[HELD_ENTRY], open_orders=[parent])
+        self.assertEqual(of.ensure_stops(fake, self.state(fake), NOW_MORNING, True)["missing"], 0)
+
+    def test_dry_run_reports_the_gap_and_sends_nothing(self):
+        fake = Fake(positions=[{"symbol": "HELD", "qty": "7"}], closed=[HELD_ENTRY])
+        out = of.ensure_stops(fake, self.state(fake), NOW_MORNING, False)
+        self.assertEqual((out["missing"], out["placed"], fake.posts()), (1, [], []))
+
+    def test_excluded_symbols_and_missing_references_are_handled(self):
+        fake = Fake(positions=[{"symbol": "HELD", "qty": "7"}], closed=[HELD_ENTRY])
+        self.assertEqual(of.ensure_stops(fake, self.state(fake), NOW_MORNING, True, exclude={"HELD"})["missing"], 0)
+        no_leg = {**HELD_ENTRY, "legs": []}
+        fake = Fake(positions=[{"symbol": "HELD", "qty": "7"}], closed=[no_leg])
+        out = of.ensure_stops(fake, self.state(fake), NOW_MORNING, True)
+        self.assertEqual((out["placed"], out["skipped"], fake.posts()), ([], [{"sym": "HELD", "why": "NO_STOP_REFERENCE"}], []))
+
+    def test_a_broker_rejection_is_reported_not_raised(self):
+        class Reject(Fake):
+            def __call__(self, method, path, body=None, host="paper"):
+                if method == "POST":
+                    raise ap.GuardError("HTTP 422 stop price above market")
+                return super().__call__(method, path, body, host)
+        fake = Reject(positions=[{"symbol": "HELD", "qty": "7"}], closed=[HELD_ENTRY])
+        out = of.ensure_stops(fake, self.state(fake), NOW_MORNING, True)
+        self.assertEqual((out["placed"], out["skipped"][0]["sym"]), ([], "HELD"))
+
+    def test_run_replaces_the_stop_even_when_entries_are_blocked_and_skips_a_symbol_that_is_leaving(self):
+        with tempfile.TemporaryDirectory() as td:
+            fake = Fake(positions=[{"symbol": "HELD", "qty": "7"}], closed=[HELD_ENTRY], is_open=True)
+            fm = datetime(2026, 11, 16, 15, 5, tzinfo=timezone.utc)
+            out = of.run(fake, ["AAA", "BBB", "CCC"], fm, Path(td), True, fetch_for(market()), "morning", entries_allowed=False)
+            stops = [b for b in fake.posts() if b.get("type") == "stop"]
+            self.assertEqual((len(stops), len(out["stops"]["placed"])), (1, 1))
+            self.assertFalse([b for b in fake.posts() if b["side"] == "buy"])
+
+    def test_a_stop_guard_fill_pairs_as_a_stop_exit_in_the_closed_trades(self):
+        stopfill = {"id": "g1", "client_order_id": "s042v3s-HELD-261118", "side": "sell", "symbol": "HELD", "filled_qty": "7", "filled_avg_price": "89.50", "filled_at": "2026-11-18T16:00:00Z"}
+        fake = Fake(closed=[HELD_ENTRY, stopfill])
+        trades, _ = of.closed_trades(fake)
+        self.assertEqual((len(trades), trades[0]["how"], trades[0]["pnl"]), (1, "STOP", -73.5))

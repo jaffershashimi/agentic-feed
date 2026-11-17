@@ -44,7 +44,7 @@ def cmd_health(a):
     from consumer import alpaca_paper as ap
     from engine import health
     rows = health.check_all(ap.make_client())
-    print(json.dumps(rows, indent=1) if a.json else health.render(rows))
+    print(json.dumps(rows, indent=1) if a.json else health.render(rows, safe=a.safe))
     return 1 if any(r["status"] == health.FAIL for r in rows) else 0
 
 
@@ -101,6 +101,7 @@ def main(argv=None):
     b.add_argument("--dump-trades", action="store_true", help="also write the as-implemented trade list (private; derived from Alpaca data)")
     h = sub.add_parser("health")
     h.add_argument("--json", action="store_true")
+    h.add_argument("--safe", action="store_true", help="withhold stock names from the output (for logs kept on GitHub)")
     g = sub.add_parser("gate")
     g.add_argument("plan")
     g.add_argument("--out")

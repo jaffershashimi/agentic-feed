@@ -50,6 +50,14 @@ class HealthTests(unittest.TestCase):
         self.assertEqual(health.stale_pending(Fake(orders=[mine]), NOW)[0], health.OK)
         self.assertEqual(health.stale_pending(Fake(orders=[odd]), NOW)[0], health.WARN)
 
+    def test_safe_render_withholds_stock_names_but_keeps_the_counts(self):
+        rows = health.check_all(Fake([pos("AAA", 10), pos("BBB", 5)], [stop("AAA", 3)]), NOW)
+        shown = health.render(rows, safe=True)
+        self.assertNotIn("AAA", shown)
+        self.assertNotIn("BBB", shown)
+        self.assertIn("2 name(s) withheld", shown)
+        self.assertIn("AAA", health.render(rows))   # the local view still names them
+
     def test_news_source_drift_and_staleness_are_caught(self):
         fresh_bz = [{"source": "benzinga", "created_at": "2026-11-17T17:58:00Z"}]
         self.assertEqual(health.news_source(Fake(news=fresh_bz), NOW, True)[0], health.OK)

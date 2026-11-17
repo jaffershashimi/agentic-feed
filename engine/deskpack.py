@@ -52,6 +52,7 @@ def build(call, now=None, plan=None, gate=None, sent=None):
 
     if sent:
         stage(4, "Execution", "OK", f"mode={sent.get('mode')}, submit={sent.get('submit')}, orders sent={len(sent.get('orders') or [])}, skipped={len(sent.get('skipped') or [])}"
+                                    + (f", stops re-placed={len(sent['stops'].get('placed') or [])} of {sent['stops'].get('missing')} missing" if sent.get("stops") else "")
                                     + (f", note: {sent['note']}" if sent.get("note") else ""))
     else:
         stage(4, "Execution", "OK", "no execution result in this pack")

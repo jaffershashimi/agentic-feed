@@ -220,7 +220,57 @@ def morning_limit(body: dict, quote, side: str):
     if (ask - bid) / ((ask + bid) / 2) > MAX_QUOTE_SPREAD:
         return None, "QUOTE_TOO_WIDE"
     px = ask * (1 + LIMIT_SLIP) if side == "buy" else bid * (1 - LIMIT_SLIP)
-    return {**body, "type": "limit", "limit_price": f"{round(px, 2):.2f}"}, None
+    out = {**body, "type": "limit", "limit_price": f"{round(px, 2):.2f}"}
+    if body.get("order_class") == "oto":
+        out["time_in_force"] = "gtc"   # a day entry gives a day stop that expires at 4 PM and leaves the position unprotected overnight (found 2026-11-17)
+    return out, None
+
+
+STOP_STATUSES = ("new", "accepted", "held", "pending_new")
+
+
+def covered_qty(open_orders: list) -> dict:
+    """symbol -> quantity covered by live sell stops (including stop legs nested in parent orders)."""
+    cover = {}
+    for o in open_orders:
+        for x in [o] + (o.get("legs") or []):
+            if x.get("side") == "sell" and x.get("type") in ("stop", "stop_limit", "trailing_stop") and x.get("status") in STOP_STATUSES:
+                cover[x["symbol"]] = cover.get(x["symbol"], 0.0) + float(x.get("qty") or 0)
+    return cover
+
+
+def stop_reference(closed: list, sym: str, tag: str = TAG):
+    """Stop price recorded on the newest filled tagged entry for `sym` (the stop leg keeps its price after it expires). None if there is none."""
+    for o in closed:
+        if (o.get("client_order_id") or "").startswith(tag + "-") and o.get("side") == "buy" and o.get("symbol") == sym and float(o.get("filled_qty") or 0) > 0:
+            for leg in o.get("legs") or []:
+                if leg.get("side") == "sell" and leg.get("stop_price"):
+                    return float(leg["stop_price"])
+    return None
+
+
+def ensure_stops(call, st: dict, now: datetime, submit: bool, exclude=frozenset()) -> dict:
+    """Stop guard: every held S-042 position must have a live broker-side stop for its full quantity. A missing one is re-placed as a GTC stop at the stop price
+    the entry recorded (the protocol's 10 percent below the signal close). Protective only: it never adds risk, so a gate block does not stop it."""
+    cover = covered_qty(st["open_orders"])
+    gaps = [(h["sym"], h["qty"] - int(cover.get(h["sym"], 0))) for h in st["held"] if h["sym"] not in exclude and h["qty"] - cover.get(h["sym"], 0) > 0]
+    out = {"missing": len(gaps), "placed": [], "skipped": []}
+    if not gaps or not submit:
+        return out
+    closed = call("GET", "/v2/orders?status=closed&limit=500&nested=true&direction=desc")
+    for sym, qty in gaps:
+        ref = stop_reference(closed, sym)
+        if ref is None:
+            out["skipped"].append({"sym": sym, "why": "NO_STOP_REFERENCE"})
+            continue
+        body = {"symbol": sym, "qty": str(qty), "side": "sell", "type": "stop", "time_in_force": "gtc", "stop_price": f"{ref:.2f}",
+                "client_order_id": f"{TAG}s-{sym}-{now.strftime('%y%m%d')}"}
+        try:
+            resp = call("POST", "/v2/orders", body)
+            out["placed"].append({"sym": sym, "id": resp.get("id"), "status": resp.get("status")})
+        except ap.GuardError as exc:
+            out["skipped"].append({"sym": sym, "why": str(exc)[:80]})
+    return out
 
 
 def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetch=None, mode: str = "close", entries_allowed: bool = True) -> dict:
@@ -289,6 +339,7 @@ def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetc
         resp = call("POST", "/v2/orders", body)
         ap.log_event(state_dir, {"action": "s042-exit", "sym": e["sym"], "reason": e["reason"], "order_id": resp.get("id")})
         out["orders"].append({"sym": e["sym"], "side": "sell", "id": resp.get("id"), "status": resp.get("status")})
+    out["stops"] = ensure_stops(call, st, now, True, exclude=leaving)
     for c, body in chosen:
         if not entries_allowed:
             out["skipped"].append({"sym": c["sym"], "why": "ENTRY_BLOCKED_BY_GATE"})
@@ -308,7 +359,7 @@ def closed_trades(call, tag: str = TAG, stop_fraction: float = STOP_FRACTION) ->
     """(trades, entry_orders). Every closed trade of this strategy from the broker's own orders: tagged entry, then its filled stop leg or its tagged exit sell."""
     closed = call("GET", "/v2/orders?status=closed&limit=500&nested=true&direction=asc")
     entries = [o for o in closed if (o.get("client_order_id") or "").startswith(tag + "-") and o.get("side") == "buy" and float(o.get("filled_qty") or 0) > 0]
-    exits = [o for o in closed if (o.get("client_order_id") or "").startswith(tag + "x-") and o.get("side") == "sell" and float(o.get("filled_qty") or 0) > 0]
+    exits = [o for o in closed if (o.get("client_order_id") or "").startswith((tag + "x-", tag + "s-")) and o.get("side") == "sell" and float(o.get("filled_qty") or 0) > 0]
     used, trades = set(), []
     for e in sorted(entries, key=lambda o: o.get("filled_at") or ""):
         qty, px = float(e["filled_qty"]), float(e["filled_avg_price"])
@@ -319,6 +370,8 @@ def closed_trades(call, tag: str = TAG, stop_fraction: float = STOP_FRACTION) ->
             how = "RULE_EXIT"
             if ex is not None:
                 used.add(ex["id"])
+                if (ex.get("client_order_id") or "").startswith(tag + "s-"):
+                    how = "STOP"
         if ex is None:
             continue
         xp = float(ex["filled_avg_price"])
@@ -346,6 +399,8 @@ def main(argv=None, call=None, now=None, fetch=None) -> int:
     p.add_argument("--state-dir", default=os.environ.get("ALPACA_PAPER_STATE", ".alpaca_paper"))
     sub = p.add_subparsers(dest="cmd", required=True)
     sub.add_parser("report")
+    pr = sub.add_parser("protect", help="stop guard: re-place any missing broker-side stop (dry run unless --submit)")
+    pr.add_argument("--submit", action="store_true")
     for name in ("signals", "run"):
         s = sub.add_parser(name)
         s.add_argument("--universe", required=True)
@@ -358,6 +413,9 @@ def main(argv=None, call=None, now=None, fetch=None) -> int:
     try:
         call = call or ap.make_client()
         now = now or datetime.now(timezone.utc)
+        if args.cmd == "protect":
+            print(json.dumps(ensure_stops(call, broker_state(call), now, args.submit), indent=1, sort_keys=True))
+            return 0
         if args.cmd == "report":
             print(json.dumps(report(call), indent=1, sort_keys=True))
             return 0
