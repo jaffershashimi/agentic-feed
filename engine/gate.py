@@ -23,17 +23,25 @@ PASS, BLOCK_ENTRIES, BLOCK_ALL = "PASS", "BLOCK_ENTRIES", "BLOCK_ALL"
 BLOCKING_HEALTH = {"stops present", "data fresh"}
 NOTIONAL_TOLERANCE = 1.02   # the stop price is rounded to cents, so the notional derived from it can differ from the true one by a fraction of a percent
 SYMBOL = re.compile(r"^[A-Z]{1,5}$")
-ID = re.compile(r"^" + re.escape(of.TAG) + r"-[A-Z]{1,5}-\d{6}$")
 
 
-def entry_problems(entries):
+def profiles():
+    """Per-strategy numbers the gate checks against: tag, position cap, size per entry, stop fraction. Read from the code that trades each one."""
+    from consumer import breakout_forward as bf
+    return {of.TAG: {"cap": limits.get("S042_POSITION_CAP"), "usd": limits.get("S042_NOTIONAL_USD"), "stop": limits.get("S042_STOP_FRACTION")},
+            bf.TAG: {"cap": bf.POSITION_CAP, "usd": bf.NOTIONAL_USD, "stop": bf.STOP_FRACTION}}
+
+
+def entry_problems(entries, tag=of.TAG, usd=None, stop_fraction=None):
     """Counts of what is wrong with the planned entry bodies. Each key is a short reason; the value is how many entries have it."""
     bad = {}
 
     def hit(reason):
         bad[reason] = bad.get(reason, 0) + 1
 
-    cap, stop_fraction = limits.get("S042_NOTIONAL_USD"), limits.get("S042_STOP_FRACTION")
+    cap = usd if usd is not None else limits.get("S042_NOTIONAL_USD")
+    stop_fraction = stop_fraction if stop_fraction is not None else limits.get("S042_STOP_FRACTION")
+    ident = re.compile(r"^" + re.escape(tag) + r"-[A-Z]{1,5}-\d{6}$")
     for b in entries:
         try:
             qty = int(b["qty"])
@@ -51,14 +59,15 @@ def entry_problems(entries):
             hit("entry is larger than the per-entry cap")
         if not SYMBOL.match(str(b.get("symbol", ""))):
             hit("symbol has an unexpected shape")
-        if not ID.match(str(b.get("client_order_id", ""))):
+        if not ident.match(str(b.get("client_order_id", ""))):
             hit("client order id does not carry the strategy tag")
     return bad
 
 
-def decide(plan, health_rows, halted=False, now=None):
+def decide(plan, health_rows, halted=False, now=None, tag=of.TAG):
     """Return {"decision", "checks": [{"id", "ok", "blocks", "detail"}], "n_entries", "n_exits"}. `plan` is the dry-run dict (or None if it could not be produced)."""
     now = now or datetime.now(timezone.utc)
+    prof = profiles()[tag]
     checks = []
 
     def add(cid, ok, blocks, detail):
@@ -75,10 +84,10 @@ def decide(plan, health_rows, halted=False, now=None):
         in_window = of.in_morning_window(now)
         add("in_execution_window", bool(plan.get("market_open")) and in_window, BLOCK_ENTRIES,
             "market open and inside the 09:50 to 11:30 ET window" if plan.get("market_open") and in_window else "the market is closed or the time is outside the 09:50 to 11:30 ET window")
-        cap = limits.get("S042_POSITION_CAP")
+        cap = prof["cap"]
         slots = int(plan.get("slots") or 0)
         add("entries_fit_free_slots", len(entries) <= min(slots, cap), BLOCK_ENTRIES, f"{len(entries)} planned entries, {slots} free slots, cap {cap}")
-        problems = entry_problems(entries)
+        problems = entry_problems(entries, tag, prof["usd"], prof["stop"])
         add("entry_orders_well_formed", not problems, BLOCK_ENTRIES, "; ".join(f"{n} x {r}" for r, n in sorted(problems.items())) if problems else "every entry has a stop, a size inside the cap and our tag")
         add("no_duplicate_entries", len({b.get("symbol") for b in entries}) == len(entries) and len({b.get("client_order_id") for b in entries}) == len(entries), BLOCK_ENTRIES, "no repeated symbol or order id")
         add("corporate_action_data_ok", not plan.get("corporate_actions_error"), BLOCK_ENTRIES, "corporate-action lookup worked" if not plan.get("corporate_actions_error") else "corporate-action lookup failed, so a split could hide in the plan")

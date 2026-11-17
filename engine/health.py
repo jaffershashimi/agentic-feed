@@ -13,7 +13,7 @@ from consumer import news_events as ne
 from consumer import oversold_forward as of
 
 OK, WARN, FAIL = "OK", "WARN", "FAIL"
-OUR_PREFIXES = ("s042v3", "s044n", "xlab")
+OUR_PREFIXES = ("s042v3", "s044n", "s048b55m", "xlab")
 EXPECTED_NEWS_SOURCES = {"benzinga"}
 
 

@@ -64,7 +64,7 @@ def cmd_gate(a):
         rows = health.check_all(ap.make_client())
     except Exception:
         rows = None   # fail closed: the gate treats missing health as a block on new entries
-    result = gate.decide(plan, rows, halted=gate.halted(os.environ.get("ALPACA_PAPER_STATE", ".alpaca_paper")))
+    result = gate.decide(plan, rows, halted=gate.halted(os.environ.get("ALPACA_PAPER_STATE", ".alpaca_paper")), tag=a.tag)
     print(gate.render(result))
     if a.out:
         Path(a.out).write_text(json.dumps(result))
@@ -105,6 +105,7 @@ def main(argv=None):
     g = sub.add_parser("gate")
     g.add_argument("plan")
     g.add_argument("--out")
+    g.add_argument("--tag", default="s042v3", help="which strategy's plan this is: s042v3 (default) or s048b55m")
     k = sub.add_parser("pack")
     k.add_argument("--plan")
     k.add_argument("--gate")
