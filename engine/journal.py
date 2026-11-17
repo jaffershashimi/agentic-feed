@@ -10,6 +10,8 @@ No language model is involved: the review is arithmetic, so it costs nothing and
 from datetime import datetime, timedelta, timezone
 
 from consumer import breakout_forward as bf
+from consumer import edgar_events as ee
+from consumer import news_veto_study as nv
 from consumer import oversold_forward as of
 
 STRATEGIES = (("S-042", of.TAG), ("S-048 B55M", bf.TAG))
@@ -68,7 +70,44 @@ def review(rows):
     return out
 
 
-def build(call, now=None):
+def attach_filing_flags(rows, client, calendar):
+    """S-053 forward record. For each closed trade, was a qualifying 8-K accepted by the SEC between the close before the signal day and 09:50 ET on the entry date?
+    Computed after the fact from the SEC's exact acceptance times (point in time), so nothing has to be logged at entry. Adds v1 and v2 (True, False or None when the stock
+    cannot be mapped to an SEC company or the window cannot be built). Read only; an SEC failure leaves the flags as None and never breaks the journal."""
+    try:
+        tk = client.ticker_map()
+    except Exception:
+        return rows
+    cache = {}
+    for r in rows:
+        r["v1"] = r["v2"] = None
+        try:
+            cik = ee.lookup(tk, r["sym"])
+            win = nv.news_window(r.get("entry_date") or "", calendar)
+            if cik is None or not win:
+                continue
+            if cik not in cache:
+                cache[cik] = client.filings(cik)
+            r["v1"], r["v2"] = ee.flags(ee.in_window(cache[cik], *win))
+        except Exception:
+            continue
+    return rows
+
+
+def filing_summary(rows):
+    """Counts and means of FILING vs NO_FILING closed trades (V2, the event-item variant). No symbols."""
+    known = [r for r in rows if r.get("v2") is not None]
+    out = {"closed": len(rows), "mapped": len(known)}
+    if not known:
+        return out
+    yes, no = [r for r in known if r["v2"]], [r for r in known if not r["v2"]]
+    out.update({"flagged": len(yes), "flagged_share_pct": round(100 * len(yes) / len(known), 1),
+                "mean_ret_filing_pct": mean([r["ret_pct"] for r in yes]), "mean_ret_no_filing_pct": mean([r["ret_pct"] for r in no]),
+                "note": "too few flagged trades to judge" if len(yes) < 30 else "descriptive only; the S-053 bar needs far more trades"})
+    return out
+
+
+def build(call, now=None, edgar_client=None):
     now = now or datetime.now(timezone.utc)
     per, allrows = {}, {}
     spy = {}
@@ -81,6 +120,9 @@ def build(call, now=None):
         trades, _ = of.closed_trades(call, tag)
         rows = settle(trades, spy)
         per[label], allrows[label] = review(rows), rows
+        if label == "S-042" and edgar_client is not None and spy:
+            attach_filing_flags(rows, edgar_client, sorted(spy))
+            per[label]["filing_record"] = filing_summary(rows)
     return {"asof": now.date().isoformat(), "strategies": per, "rows": allrows}
 
 
@@ -96,5 +138,12 @@ def render(j):
             continue
         lines.append(f"- **{label}**: {r['closed']} closed, win rate {r['win_rate_pct']}%, mean {_p(r['mean_ret_pct'])} (against SPY {_p(r['mean_adj_ret_pct'])}), stop exits {r['stop_share_pct']}% "
                      f"(mean {_p(r['mean_ret_stop_exits_pct'])}), rule exits mean {_p(r['mean_ret_rule_exits_pct'])}, worst {_p(r['worst_ret_pct'])}. Review: " + "; ".join(r["flags"]) + ".")
+    f = j["strategies"].get("S-042", {}).get("filing_record")
+    if f and f.get("closed"):
+        if f.get("mapped"):
+            lines.append(f"- **S-042 filing record (S-053 forward data)**: {f['mapped']} of {f['closed']} closed trades matched to an SEC company; {f['flagged_share_pct']}% had an event 8-K in the window "
+                         f"({f['flagged']} trades); mean {_p(f['mean_ret_filing_pct'])} with a filing, {_p(f['mean_ret_no_filing_pct'])} without. {f['note']}.")
+        else:
+            lines.append(f"- **S-042 filing record (S-053 forward data)**: 0 of {f['closed']} closed trades could be matched yet.")
     lines.append("")
     return "\n".join(lines)
