@@ -31,5 +31,8 @@ python3.12 -m consumer.oversold_forward report                                # 
 ## Verified on the paper account (Nov 16 2026)
 One SPY share through the same order type: market buy filled 0.003% from the reference price with the stop resting; cancelling the stop and selling flattened it. Open orders list the stop as its own sell order, which is what the exit step cancels.
 
+## First fills (2026-11-17)
+The first 10 queued entries filled 2 to 3 minutes after the open (not at the opening print), with a mean gap of +44 bps against the signal close (range -120 to +224, n 10). All stop orders were live after the fills. Treat the backtest's open-fill assumption as optimistic until 20 or so fills say otherwise.
+
 ## Limits
 No pre-open fill check: queued market orders fill at the open whatever it is, and a gap below the stop fills at the open. Paper fills ignore queue position and market impact. The universe is a fixed list for 2026 and must be rebuilt each January.
