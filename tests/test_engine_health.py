@@ -26,6 +26,19 @@ def pos(sym, qty): return {"symbol": sym, "qty": str(qty)}
 def stop(sym, qty, status="new"): return {"symbol": sym, "side": "sell", "type": "stop", "qty": str(qty), "status": status, "client_order_id": "s042v3-x", "legs": []}
 
 
+OPT = "AAA261218C00010000"
+
+
+class OptionSpreadHandlingTests(unittest.TestCase):
+    def test_option_spreads_are_not_stock_stops_and_their_orders_are_not_orphans(self):
+        self.assertEqual(health.stops_present(Fake(positions=[pos(OPT, 2)]))[0], health.OK)
+        mleg = {"symbol": None, "side": None, "type": "limit", "status": "new", "client_order_id": "debit-vertical-o42-AAA-261120"}
+        close = {"symbol": OPT, "side": "sell", "type": "limit", "status": "new", "client_order_id": "close-o42-AAA-261120-L-1127"}
+        self.assertEqual(health.orphan_orders(Fake(positions=[pos(OPT, 2)], orders=[mleg, close]))[0], health.OK)
+        stranger = {"symbol": None, "side": None, "type": "limit", "status": "new", "client_order_id": "manual-1"}
+        self.assertEqual(health.orphan_orders(Fake(orders=[stranger]))[0], health.WARN)
+
+
 class HealthTests(unittest.TestCase):
     def test_a_position_without_a_full_stop_is_a_fail_and_names_the_symbol(self):
         s, d = health.stops_present(Fake([pos("AAA", 10), pos("BBB", 5)], [stop("AAA", 10), stop("BBB", 3)]))

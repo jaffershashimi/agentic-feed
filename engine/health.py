@@ -11,9 +11,11 @@ from datetime import datetime, timedelta, timezone
 
 from consumer import news_events as ne
 from consumer import oversold_forward as of
+from consumer.alpaca_options import is_option
 
 OK, WARN, FAIL = "OK", "WARN", "FAIL"
 OUR_PREFIXES = ("s042v3", "s044n", "s048b55m", "xlab")
+OPTION_PREFIXES = ("debit-vertical-o42-", "close-o42-")   # S-052 option spread orders
 EXPECTED_NEWS_SOURCES = {"benzinga"}
 
 
@@ -25,7 +27,8 @@ def stops_present(call):
         for x in [o] + (o.get("legs") or []):
             if x.get("side") == "sell" and x.get("type") in ("stop", "stop_limit", "trailing_stop") and x.get("status") in ("new", "accepted", "held", "pending_new"):
                 cover[x["symbol"]] = cover.get(x["symbol"], 0) + float(x.get("qty") or 0)
-    bad = [p["symbol"] for p in pos if cover.get(p["symbol"], 0) < float(p["qty"]) - 1e-9]
+    # option spreads (S-052) are defined-risk and have no stop order: their exits are the morning manage step, so they are not stock stops
+    bad = [p["symbol"] for p in pos if not is_option(p["symbol"]) and cover.get(p["symbol"], 0) < float(p["qty"]) - 1e-9]
     return (OK if not bad else FAIL), (f"{len(pos)} positions, all covered by a stop" if not bad else f"NO FULL STOP on: {', '.join(sorted(bad))}")
 
 
@@ -33,14 +36,14 @@ def orphan_orders(call):
     opens = call("GET", "/v2/orders?status=open&limit=500&nested=false")
     held = {p["symbol"] for p in call("GET", "/v2/positions")}
     # the stop attached to one of our entries carries an auto-generated id, so a sell stop on a symbol we hold is not an orphan
-    odd = [o["symbol"] for o in opens if not (o.get("client_order_id") or "").startswith(OUR_PREFIXES)
-           and not (o.get("side") == "sell" and o.get("type") == "stop" and o["symbol"] in held)]
+    odd = [o.get("symbol") or "?" for o in opens if not (o.get("client_order_id") or "").startswith(OUR_PREFIXES + OPTION_PREFIXES)
+           and not (o.get("side") == "sell" and o.get("type") == "stop" and o.get("symbol") in held)]
     return (OK if not odd else WARN), ("no unknown open orders" if not odd else f"orders not placed by our tools: {', '.join(sorted(set(odd)))}")
 
 
 def stale_pending(call, now):
     opens = call("GET", "/v2/orders?status=open&limit=500&nested=false")
-    old = [o["symbol"] for o in opens if o.get("side") == "buy" and o.get("submitted_at") and now - ne.parse_ts(o["submitted_at"]) > timedelta(hours=40)]
+    old = [o.get("symbol") or "?" for o in opens if o.get("side") == "buy" and o.get("submitted_at") and now - ne.parse_ts(o["submitted_at"]) > timedelta(hours=40)]
     return (OK if not old else WARN), ("no entries waiting more than a session" if not old else f"entries waiting more than a session: {', '.join(sorted(old))}")
 
 

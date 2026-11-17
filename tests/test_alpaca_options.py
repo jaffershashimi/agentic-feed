@@ -198,7 +198,7 @@ class CommandTests(unittest.TestCase):
         self.assertEqual(self.run_cli(fake, "manage", "--submit")[0], 2)
 
     def test_structure_count_premium_and_duplicate_leg_limits(self):
-        open_orders = [{"client_order_id": f"long-call-X-{i}", "symbol": ao.occ("AAA", EXP, "C", 10 + i)} for i in range(6)]
+        open_orders = [{"client_order_id": f"long-call-X-{i}", "symbol": ao.occ("AAA", EXP, "C", 10 + i)} for i in range(ao.MAX_OPEN_STRUCTURES)]
         code, out = self.run_cli(Fake(quotes={C100: (4.9, 5.1)}, orders=open_orders), *self.args())
         self.assertEqual(code, 2)
         self.assertIn("structures are already open", out["error"])
