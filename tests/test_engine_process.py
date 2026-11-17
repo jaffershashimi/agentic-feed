@@ -373,7 +373,7 @@ class PackBroker:
         if path.startswith("/v1beta1/news"): return {"news": [{"source": "benzinga", "created_at": "2026-11-17T14:59:00Z"}]}
         if path.startswith("/v2/stocks/bars"):
             if "1Min" in path: return {"bars": {"SECRETCO": [{"o": 100.0}]}}
-            return {"bars": {"SPY": [{"t": "2026-11-16T05:00:00Z"}]}}
+            return {"bars": {"SPY": [{"t": of.last_complete_session(datetime.now(timezone.utc)).isoformat() + "T05:00:00Z"}]}}   # always fresh, so tests do not depend on the date they run
         if path == "/v2/account": return {"equity": "100000", "last_equity": "100000"}
         if path.startswith("/v2/account/portfolio/history"): return {"equity": [100000.0, 100000.0]}
         raise AssertionError(path)
@@ -430,6 +430,16 @@ class RunnerTests(unittest.TestCase):
                 with contextlib.redirect_stdout(io.StringIO()):
                     self.assertEqual(runner.main(["pack", "--summary-file", str(summary)]), 0)
             self.assertIn("Desk pack", summary.read_text())
+
+    def test_pack_fail_on_red_exits_nonzero_only_when_the_pack_is_red(self):
+        class Dead:
+            def __call__(self, *a, **k): raise ap.GuardError("network error")
+        with contextlib.redirect_stdout(io.StringIO()):
+            with mock.patch.object(ap, "make_client", return_value=Dead()):
+                self.assertEqual(runner.main(["pack", "--fail-on-red"]), 1)
+                self.assertEqual(runner.main(["pack"]), 0)
+            with mock.patch.object(ap, "make_client", return_value=PackBroker()):
+                self.assertEqual(runner.main(["pack", "--fail-on-red"]), 0)
 
     def test_limits_command_lists_the_register(self):
         with contextlib.redirect_stdout(io.StringIO()) as buf:

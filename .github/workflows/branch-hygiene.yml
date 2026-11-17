@@ -1,0 +1,47 @@
+name: branch-hygiene
+# Deletes a pull request's branch after the PR is merged (only branches named claude/*), and can sweep old merged ones on demand.
+# Uses only the built-in token. Never touches main, data or any branch with an open pull request.
+on:
+  pull_request:
+    types: [closed]
+  workflow_dispatch:
+    inputs:
+      sweep:
+        description: "Delete every claude/* branch whose pull requests are all merged or closed and that has none open"
+        type: boolean
+        default: false
+permissions:
+  contents: write
+  pull-requests: read
+jobs:
+  after-merge:
+    if: github.event_name == 'pull_request' && github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'claude/') && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Delete the merged branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: |
+          # No other open pull request may use this branch.
+          OPEN=$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&head=${GITHUB_REPOSITORY%%/*}:$BRANCH" --jq 'length')
+          if [ "$OPEN" != "0" ]; then echo "Branch still has an open pull request: kept."; exit 0; fi
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$BRANCH" && echo "Deleted $BRANCH" || echo "Could not delete $BRANCH (already gone?)"
+  sweep:
+    if: github.event_name == 'workflow_dispatch' && inputs.sweep
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Delete merged claude/* branches with no open pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          OWNER="${GITHUB_REPOSITORY%%/*}"
+          for B in $(gh api "repos/$GITHUB_REPOSITORY/branches?per_page=100" --paginate --jq '.[].name' | grep '^claude/' || true); do
+            OPEN=$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=open&head=$OWNER:$B" --jq 'length')
+            MERGED=$(gh api "repos/$GITHUB_REPOSITORY/pulls?state=closed&head=$OWNER:$B&per_page=100" --jq '[.[] | select(.merged_at != null)] | length')
+            if [ "$OPEN" = "0" ] && [ "$MERGED" -gt 0 ]; then
+              gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$B" && echo "Deleted $B"
+            else
+              echo "Kept $B (open PRs: $OPEN, merged PRs: $MERGED)"
+            fi
+          done
