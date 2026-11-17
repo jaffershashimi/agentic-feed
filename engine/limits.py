@@ -31,8 +31,8 @@ REGISTER = [
     ("PROPOSED_DAILY_LOSS_RED_PCT", -3.0, "percent of equity (same line as NEWS_DAILY_LOSS_HALT on a 100,000 USD account)", False, "engine/riskreport.py"),
     ("PROPOSED_DRAWDOWN_AMBER_PCT", -5.0, "percent below the equity peak", False, "engine/riskreport.py"),
     ("PROPOSED_DRAWDOWN_RED_PCT", -10.0, "percent below the equity peak", False, "engine/riskreport.py"),
-    ("PROPOSED_GROSS_AMBER_PCT", 30.0, "percent of equity in positions", False, "engine/riskreport.py"),
-    ("PROPOSED_GROSS_RED_PCT", 50.0, "percent of equity in positions", False, "engine/riskreport.py"),
+    ("PROPOSED_GROSS_AMBER_PCT", 70.0, "percent of equity in positions", False, "engine/riskreport.py"),
+    ("PROPOSED_GROSS_RED_PCT", 90.0, "percent of equity in positions", False, "engine/riskreport.py"),
     ("PROPOSED_LARGEST_AMBER_PCT", 5.0, "percent of equity in one name", False, "engine/riskreport.py"),
     ("PROPOSED_LARGEST_RED_PCT", 10.0, "percent of equity in one name", False, "engine/riskreport.py"),
 ]
