@@ -8,7 +8,7 @@ Frozen rules (spec in the private hub, system/06-research/specs/S-052-s042-optio
   * Quotes: every leg needs a two-sided quote with a bid-ask spread of at most 20 percent of the mid (consumer.alpaca_options.build_plan). Limits sit 25 percent of
     the half-spread past the mid, day orders, one multi-leg order.
   * Exits, checked every trading morning: lost half the premium, premium doubled, 5 trading days held (the S-042 time stop), or 5 days before expiry. Closing legs go out as limit orders.
-  * Halt: no new spreads while the strategy's total result (closed plus open) is at or below the halt line.
+  * Halt: no new spreads while the strategy's total result (closed plus open) is at or below the halt line (-1,500 USD, set by the owner).
 Paper account only. Nothing here sends an order unless --submit is given. The log prints counts; names stay in the JSON file you redirect to.
 
   python3 -m consumer.s042_options run --plan PLAN.json [--submit]
@@ -42,7 +42,7 @@ TARGET_DTE = 37
 DTE_RANGE = (30, 45)
 SHORT_STRIKE_MULT = 1.06
 HOLD_SESSIONS = of.HOLD_DAYS            # 5, same time stop as the stock strategy
-HALT_USD = -1500.0                      # PROPOSED by engineering, 30 percent of the 5,000 USD most that can be at risk. The owner confirms or changes it.
+HALT_USD = -1500.0                      # confirmed by the owner 2026-11-17: 30 percent of the 5,000 USD most that can be at risk
 START_DATE = date(2026, 11, 20)         # inactive before this date, so the first live stock run is not disturbed by a second change
 MAX_PREMIUM_NOTE = ao.MAX_TOTAL_PREMIUM_FRAC
 
