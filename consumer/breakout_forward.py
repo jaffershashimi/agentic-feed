@@ -30,6 +30,7 @@ POSITION_CAP = 20
 NOTIONAL_USD = 1000.0
 STOP_FRACTION = 0.90
 HOLD_SESSIONS = 40
+HALT_USD = -2500.0     # owner decision 2026-11-17: no new entries while this strategy's total result (closed plus open) is at or below this; exits and stops continue
 
 
 def sessions_since(data, sym, entry_date, asof):
@@ -63,6 +64,14 @@ def plan_exits(held, ctx, data, strategy, asof):
     return out
 
 
+def total_result_usd(call, st):
+    """Closed result from the broker's orders plus the unrealized result of the positions this strategy holds."""
+    trades, _ = of.closed_trades(call, TAG)
+    mine = {h["sym"] for h in st["held"]}
+    open_pl = sum(float(p.get("unrealized_pl") or 0) for p in st["raw_book"] if p.get("symbol") in mine)
+    return round(sum(t["pnl"] for t in trades) + open_pl, 2)
+
+
 def run(call, universe, now, state_dir, submit, fetch=None, mode="morning", entries_allowed=True):
     ap.check_not_halted(state_dir)
     asof = of.last_complete_session(now)
@@ -74,6 +83,9 @@ def run(call, universe, now, state_dir, submit, fetch=None, mode="morning", entr
     intents = sorted(strategy.signals(ctx), key=lambda x: x.rank)
     st = of.broker_state(call, TAG)
     clock = call("GET", "/v2/clock")
+    halted = total_result_usd(call, st) <= HALT_USD
+    if halted:
+        entries_allowed = False
     exits = plan_exits(st["held"], ctx, data, strategy, asof)
     leaving = {e["sym"] for e in exits if e["action"] == "EXIT"}
     busy = {p["symbol"] for p in st["raw_book"]} | {o.get("symbol") for o in st["open_orders"]}
@@ -94,7 +106,7 @@ def run(call, universe, now, state_dir, submit, fetch=None, mode="morning", entr
         else:
             skipped.append({"sym": it.symbol, "why": "NO_FREE_SLOT"})
     out = {"asof": asof.isoformat(), "variant": VARIANT, "signals": len(intents), "slots": slots, "market_open": bool(clock.get("is_open")), "submit": bool(submit), "mode": mode,
-           "exits": [{k: e[k] for k in ("sym", "action", "reason") if k in e} for e in exits], "entries": chosen, "skipped": skipped, "orders": [], "corporate_actions_error": ca["error"]}
+           "exits": [{k: e[k] for k in ("sym", "action", "reason") if k in e} for e in exits], "entries": chosen, "skipped": skipped, "orders": [], "corporate_actions_error": ca["error"], "halted": halted}
     if not submit:
         out["note"] = "dry run: nothing was sent"
         return out
@@ -121,7 +133,7 @@ def run(call, universe, now, state_dir, submit, fetch=None, mode="morning", entr
     out["stops"] = of.ensure_stops(call, st, now, True, exclude=leaving, tag=TAG)
     for body in chosen:
         if not entries_allowed:
-            out["skipped"].append({"sym": body["symbol"], "why": "ENTRY_BLOCKED_BY_GATE"})
+            out["skipped"].append({"sym": body["symbol"], "why": "ENTRY_BLOCKED_BY_HALT" if halted else "ENTRY_BLOCKED_BY_GATE"})
             continue
         limit, why = of.morning_limit(body, qs.get(body["symbol"]), "buy")
         if limit is None:
