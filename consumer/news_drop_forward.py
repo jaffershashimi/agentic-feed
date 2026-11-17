@@ -37,6 +37,11 @@ TAG = "s044n"
 STOP_FRACTION = 0.88
 NOTIONAL_CAP = 5000.0
 HOLD_SESSIONS = 10
+NEWS_SUSPECT_MIN_EVENTS = 6
+# 2026-11-17: SUSPENDED. Backtested exactly as the protocol is written (5,000 USD cap, 6 open, 12 percent stop, highest dollar volume first, hold to session 10) the strategy loses
+# about 30,000 USD over ten years with a 41,000 USD drawdown: the no-news rebound is mostly the market's own bounce (market-adjusted about +0.14 percent). Scanning and logging continue; orders
+# need SUSPENDED = False after a new as-implemented backtest and the owner's approval.
+SUSPENDED = True
 MAX_OPEN = pr.MAX_OPEN_TRADES
 MIN_PRICE = 10.0
 MIN_ADV = 2e7
@@ -79,6 +84,7 @@ def scan(call, universe, now, fetch=None, news=None):
     items = (news or news_for)(call, events, asof)
     for e in events:
         e["group"], e["sub"] = nds.classify(e["sym"], items.get(e["sym"], []))
+        e["n_items"] = len(items.get(e["sym"], []))
         e["headline"] = next((n["headline"] for n in sorted(items.get(e["sym"], []), key=lambda n: n["created_at"]) if ne.is_informative(n)), None)
     return {"asof": asof.isoformat(), "spy_ret": spy_ret, "events": events}
 
@@ -160,6 +166,8 @@ def plan_exits(held, data, asof):
 
 def run(call, universe, now, state_dir, submit, fetch=None, news=None):
     ap.check_not_halted(state_dir)
+    if submit and SUSPENDED:
+        raise ap.GuardError("refused: S-044F entries are suspended (its as-implemented backtest loses money); scanning and dry runs still work")
     sig = scan(call, universe, now, fetch, news)
     asof = datetime.fromisoformat(sig["asof"]).date()
     st = of.broker_state(call, TAG)
@@ -175,6 +183,12 @@ def run(call, universe, now, state_dir, submit, fetch=None, news=None):
     clock = call("GET", "/v2/clock")
     chosen, skipped = [], []
     cands = sorted((e for e in sig["events"] if e["group"] == "NO_NEWS"), key=lambda e: -e["adv20"])
+    # A silent news outage (HTTP 200, nothing in it) would make EVERY drop look like a no-news drop. On a normal day about half of the drops carry at least one
+    # headline of any kind, so a day with 6 or more drops and none at all is treated as a broken feed and nothing is entered.
+    news_suspect = len(sig["events"]) >= NEWS_SUSPECT_MIN_EVENTS and all(e.get("n_items", 0) == 0 for e in sig["events"])
+    if news_suspect:
+        skipped += [{"sym": e["sym"], "why": "NEWS_FEED_SUSPECT"} for e in cands]
+        cands = []
     for e in cands:
         try:
             if e["sym"] in busy:
@@ -190,7 +204,7 @@ def run(call, universe, now, state_dir, submit, fetch=None, news=None):
             skipped.append({"sym": e["sym"], "why": str(exc)})
     out = {"asof": sig["asof"], "drops": len(sig["events"]), "no_news": len(cands), "news_logged_only": sum(1 for e in sig["events"] if e["group"] != "NO_NEWS"),
            "market_open": bool(clock.get("is_open")), "submit": bool(submit), "exits": [{k: x[k] for k in ("sym", "action", "reason") if k in x} for x in exits],
-           "entries": [b for _, b in chosen], "skipped": skipped, "orders": []}
+           "entries": [b for _, b in chosen], "skipped": skipped, "orders": [], "news_feed_suspect": news_suspect, "suspended": SUSPENDED}
     if not submit:
         out["note"] = "dry run: nothing was sent"
         return out
