@@ -26,7 +26,7 @@ ET = ZoneInfo("America/New_York")
 def reference_time(o):
     """When the price we measure against was set: the moment the order was sent, or the open of the session it filled in if it was queued before that open
     (orders sent after the close fill at the next open, and there is no market to measure against overnight)."""
-    sent, filled = ne.parse_ts(o["submitted_at"]), ne.parse_ts(o["filled_at"] or o["submitted_at"])
+    sent, filled = ne.parse_ts(o["submitted_at"]), ne.parse_ts(o.get("filled_at") or o["submitted_at"])
     f_et = filled.astimezone(ET)
     open_utc = datetime.combine(f_et.date(), time(9, 30), tzinfo=ET).astimezone(timezone.utc)
     return max(sent, open_utc) if sent < open_utc else sent
