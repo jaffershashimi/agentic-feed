@@ -307,6 +307,14 @@ def report(call) -> dict:
             "mean_fill_vs_limit_usd": round(sum(r["fill_vs_limit_usd"] for r in rows) / n, 2) if n else None, "halt_line_usd": HALT_USD, "start_date": START_DATE.isoformat()}
 
 
+def entries_from(plan: dict, sent: dict | None) -> dict:
+    """The names to copy. After a real S-042 run: only the stock buys that were actually sent (a stock skipped for a wide quote gets no spread).
+    In a dry run (no sent file): the planned entries."""
+    if sent is None:
+        return plan
+    return {"entries": [{"symbol": o["sym"]} for o in sent.get("orders", []) if o.get("side") == "buy" and o.get("sym")]}
+
+
 def counts(result: dict) -> dict:
     """What goes in a GitHub log: counts only, no names."""
     keys = ("asof", "submit", "considered", "opened", "skipped", "open_now", "halted", "open", "closing", "note")
@@ -319,6 +327,7 @@ def main(argv=None, call=None, now=None) -> int:
     sub = p.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run")
     r.add_argument("--plan", required=True)
+    r.add_argument("--sent", help="result of the S-042 execution step: copy only the stock buys that were sent")
     r.add_argument("--submit", action="store_true")
     r.add_argument("--out", help="write the full result (it names stocks) to this file and print counts only")
     m = sub.add_parser("manage")
@@ -334,7 +343,8 @@ def main(argv=None, call=None, now=None) -> int:
         elif a.cmd == "manage":
             result = manage(call, now, Path(a.state_dir), a.submit)
         else:
-            result = run(call, json.loads(Path(a.plan).read_text()), now, Path(a.state_dir), a.submit)
+            sent = json.loads(Path(a.sent).read_text()) if a.sent else None
+            result = run(call, entries_from(json.loads(Path(a.plan).read_text()), sent), now, Path(a.state_dir), a.submit)
     except GuardError as exc:
         print(json.dumps({"error": str(exc)}))
         return 2

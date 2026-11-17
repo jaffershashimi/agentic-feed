@@ -66,6 +66,14 @@ class PickTests(unittest.TestCase):
         self.assertEqual(so.sessions_held(date(2026, 11, 20), date(2026, 11, 23)), 1)
 
 
+class EntriesFromTests(unittest.TestCase):
+    def test_only_sent_stock_buys_are_copied(self):
+        sent = {"orders": [{"sym": "AAA", "side": "buy"}, {"sym": "BBB", "side": "sell"}, {"sym": "CCC", "side": "buy"}]}
+        self.assertEqual(so.entries_from(PLAN, sent), {"entries": [{"symbol": "AAA"}, {"symbol": "CCC"}]})
+        self.assertEqual(so.entries_from(PLAN, {"orders": []}), {"entries": []})
+        self.assertIs(so.entries_from(PLAN, None), PLAN)
+
+
 class RunTests(unittest.TestCase):
     def run_it(self, fake, plan=PLAN, submit=True, now=NOW):
         return so.run(fake, plan, now, Path(tempfile.mkdtemp()), submit)
