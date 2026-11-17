@@ -249,7 +249,7 @@ def stop_reference(closed: list, sym: str, tag: str = TAG):
     return None
 
 
-def ensure_stops(call, st: dict, now: datetime, submit: bool, exclude=frozenset()) -> dict:
+def ensure_stops(call, st: dict, now: datetime, submit: bool, exclude=frozenset(), tag: str = TAG) -> dict:
     """Stop guard: every held S-042 position must have a live broker-side stop for its full quantity. A missing one is re-placed as a GTC stop at the stop price
     the entry recorded (the protocol's 10 percent below the signal close). Protective only: it never adds risk, so a gate block does not stop it."""
     cover = covered_qty(st["open_orders"])
@@ -259,12 +259,12 @@ def ensure_stops(call, st: dict, now: datetime, submit: bool, exclude=frozenset(
         return out
     closed = call("GET", "/v2/orders?status=closed&limit=500&nested=true&direction=desc")
     for sym, qty in gaps:
-        ref = stop_reference(closed, sym)
+        ref = stop_reference(closed, sym, tag)
         if ref is None:
             out["skipped"].append({"sym": sym, "why": "NO_STOP_REFERENCE"})
             continue
         body = {"symbol": sym, "qty": str(qty), "side": "sell", "type": "stop", "time_in_force": "gtc", "stop_price": f"{ref:.2f}",
-                "client_order_id": f"{TAG}s-{sym}-{now.strftime('%y%m%d')}"}
+                "client_order_id": f"{tag}s-{sym}-{now.strftime('%y%m%d')}"}
         try:
             resp = call("POST", "/v2/orders", body)
             out["placed"].append({"sym": sym, "id": resp.get("id"), "status": resp.get("status")})
