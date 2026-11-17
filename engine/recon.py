@@ -26,7 +26,7 @@ OVERDUE_DAYS = math.ceil(limits.get("S042_HOLD_SESSIONS") * 7 / 5) + 3   # calen
 
 def _tagged(o):
     cid = o.get("client_order_id") or ""
-    return any(cid.startswith(p + "-") or cid.startswith(p + "x-") for p in OUR_PREFIXES)
+    return any(cid.startswith((p + "-", p + "x-", p + "s-")) for p in OUR_PREFIXES)   # s- is a stop-guard stop
 
 
 def net_from_orders(closed):
