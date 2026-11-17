@@ -119,6 +119,9 @@ def drop_market(names):
 
 class RunTests(unittest.TestCase):
     def setUp(self):
+        self._old_susp = ndf.SUSPENDED
+        ndf.SUSPENDED = False
+        self.addCleanup(setattr, ndf, "SUSPENDED", self._old_susp)
         self._td = tempfile.TemporaryDirectory()
         self.addCleanup(self._td.cleanup)
         self.state = Path(self._td.name)
@@ -157,6 +160,14 @@ class RunTests(unittest.TestCase):
         out = self.go(FakeBroker(open_orders=pending))
         self.assertEqual(out["entries"], [])
         self.assertTrue(all("limit" in s["why"] or "open" in s["why"] for s in out["skipped"]))
+
+    def test_suspended_flag_blocks_submits_but_not_dry_runs(self):
+        ndf.SUSPENDED = True
+        b = FakeBroker()
+        with self.assertRaises(ap.GuardError):
+            self.go(b)
+        self.assertEqual(b.posts(), [])
+        self.assertTrue(self.go(b, submit=False)["suspended"])
 
     def test_leveraged_funds_are_not_entries(self):
         b = FakeBroker()

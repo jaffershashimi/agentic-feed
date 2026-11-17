@@ -64,6 +64,29 @@ class WatchTests(unittest.TestCase):
             self.assertEqual(n, 3)
             self.assertEqual(len(nw.read(Path(tmp) / "errors.jsonl")), 3)
 
+    def test_catchup_finds_events_without_a_background_process_and_is_idempotent(self):
+        items = [hl(1, "Iran missile attack on Israel", "2026-11-17T14:50:00Z"), hl(2, "Israel war escalates", "2026-11-17T14:55:00Z"),
+                 hl(3, "Iran drone attack reported", "2026-11-17T14:58:00Z")]
+
+        class Cu:
+            def __call__(self, method, path, body=None, host="paper"):
+                if path.startswith("/v1beta1/news"):
+                    return {"news": items, "next_page_token": None}
+                if path.startswith("/v2/stocks/bars"):
+                    t0 = datetime(2026, 11, 17, 14, 48, tzinfo=timezone.utc)
+                    bars = [{"t": (t0 + timedelta(minutes=i)).isoformat().replace("+00:00", "Z"), "c": 600.0 - 0.1 * i} for i in range(70)]
+                    return {"bars": {"SPY": bars}, "next_page_token": None}
+                raise AssertionError(path)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            now = datetime(2026, 11, 17, 16, 30, tzinfo=timezone.utc)
+            r = nw.catchup(Cu(), tmp, now, days=1)
+            self.assertEqual(r["new_events"], 1)
+            self.assertEqual(len(nw.read(Path(tmp) / "reactions.jsonl")), 4)
+            s = nw.summarize(tmp)
+            self.assertLess(s["rows"][0]["m60_pct"], 0)
+            self.assertEqual(nw.catchup(Cu(), tmp, now, days=1)["new_events"], 0)
+
     def test_cli_rejects_naive_until(self):
         self.assertEqual(nw.main(["run", "--dir", "x", "--until", "2026-11-17T21:00:00"], call=lambda *a, **k: {}), 2)
 
