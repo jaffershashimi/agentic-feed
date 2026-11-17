@@ -38,7 +38,15 @@ class FakeCall:
 
 
 def good_run(cmd, cwd, timeout=240):
+    if any("bar_archive" in c for c in cmd):
+        return 0, '{\n "days_ok": 21,\n "problems": []\n}'
     return 0, "## claude/x...origin/x\nOK"
+
+
+def archive_problem_run(cmd, cwd, timeout=240):
+    if any("bar_archive" in c for c in cmd):
+        return 0, '{\n "days_ok": 20,\n "problems": ["2026-11-10: hash mismatch"]\n}'
+    return good_run(cmd, cwd, timeout)
 
 
 def make_repos(tmp):
@@ -62,6 +70,17 @@ class PreflightTests(unittest.TestCase):
 
     def status(self, rows, name):
         return next(r["status"] for r in rows if name in r["check"])
+
+    def test_bar_archive_problems_are_a_fail_and_the_check_runs_from_the_feed_checkout(self):
+        self.assertEqual(self.status(self.run_all(FakeCall(), run=archive_problem_run), "bar archive"), sp.FAIL)
+        seen = []
+        def spy(cmd, cwd, timeout=240):
+            if any("bar_archive" in c for c in cmd):
+                seen.append((cwd.name, cmd[-1]))
+            return good_run(cmd, cwd, timeout)
+        self.run_all(FakeCall(), run=spy)
+        self.assertEqual(seen[0][0], "feed")
+        self.assertTrue(seen[0][1].endswith("hub/system/11-market-data"))
 
     def test_healthy_system_has_no_fail(self):
         rows = self.run_all(FakeCall())

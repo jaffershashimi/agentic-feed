@@ -75,6 +75,16 @@ class EntryTests(Base):
         self.assertEqual([b for b in fake.posts() if b["side"] == "buy"], [])
         self.assertTrue(any(s["why"] == "ENTRY_BLOCKED_BY_GATE" for s in out["skipped"]))
 
+    def test_the_halt_line_blocks_new_entries_but_not_exits_or_stops(self):
+        held = [{"symbol": "BBB", "qty": "3", "unrealized_pl": "-2600"}]
+        fake = to.Fake(positions=held, closed=[entry_order("BBB", 3)], is_open=True)
+        out = self.go(fake, market(), submit=True)
+        self.assertTrue(out["halted"])
+        self.assertEqual([b for b in fake.posts() if b["side"] == "buy"], [])
+        self.assertTrue(any(s["why"] == "ENTRY_BLOCKED_BY_HALT" for s in out["skipped"]))
+        ok = to.Fake(positions=[{"symbol": "BBB", "qty": "3", "unrealized_pl": "-200"}], closed=[entry_order("BBB", 3)], is_open=True)
+        self.assertFalse(self.go(ok, market(), submit=True)["halted"])
+
     def test_the_kill_switch_blocks_everything(self):
         ap.halt_file(self.state).write_text("x")
         with self.assertRaises(ap.GuardError):

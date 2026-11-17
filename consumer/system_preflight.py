@@ -94,8 +94,10 @@ def check_all(call, feed, hub, watch_dir, now=None, run=_run, env=os.environ):
     add("privacy check (feed)", PASS if code == 0 else FAIL, txt.splitlines()[-1][:100] if txt else "")
     code, txt = run([sys.executable, "scripts/registry_check.py"], hub)
     add("registry check (hub)", PASS if code == 0 else FAIL, txt.splitlines()[-1][:100] if txt else "")
-    code, txt = run([sys.executable, "-m", "consumer.bar_archive", "check", "--root", "system/11-market-data"], hub)
-    add("bar archive check", PASS if code == 0 and '"problems": []' in txt.replace("\n", "").replace("  ", "").replace('": [', '": [') or code == 0 else FAIL, "see bar_archive check")
+    # the code lives in agentic-feed since 2026-11-17, the data in the hub: run the module from the feed checkout and point it at the hub's data
+    code, txt = run([sys.executable, "-m", "consumer.bar_archive", "check", "--root", str(hub / "system/11-market-data")], feed)
+    flat = txt.replace("\n", "").replace(" ", "")
+    add("bar archive check", PASS if code == 0 and '"problems":[]' in flat else FAIL, "days ok, no problems" if code == 0 and '"problems":[]' in flat else "problems found: run consumer.bar_archive check")
     universe = of.load_universe(hub / "system/11-market-data/universe_s042_2026.txt")
     try:
         r = of.run(call, universe, now, Path(os.environ.get("ALPACA_PAPER_STATE", ".alpaca_paper")), False)
