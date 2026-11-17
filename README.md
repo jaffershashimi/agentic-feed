@@ -59,6 +59,7 @@ Docs:
 - `docs/ROBUSTNESS_TOOLKIT.md` (Deflated Sharpe, overfitting probability, causal HMM regimes, tear sheets, data gate, cost model, overnight monitor)
 - `docs/OPEN_SOURCE_LANDSCAPE.md` (what open-source tools and papers we adopted and what we rejected)
 - `docs/NEWS_STRATEGIES.md` (news and hype strategies S-043 and S-044, live headline watcher, drop scanner, tier-2 paper sizing)
+- `docs/KNOWLEDGE_CORE.md` (index of the methods in use, the day-trader-skill pack decisions, and the sample test record)
 - `docs/CONNECTORS.md` (read-only Alpaca MCP server and other data connectors)
 - `docs/RECORDS_STORE.md` (append-only, hash-chained copy of the paper records; detects and undoes a stale overwrite)
 - `docs/REPLAY_R2.md`, section "Resolving open trades" (`--resolve`: closes replay trades that entered too late in a session to get an exit)

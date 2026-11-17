@@ -58,3 +58,55 @@ def check_new_trade(trade_max_loss, open_risks, day_pnl):
     if day_pnl <= -DAILY_LOSS_HALT:
         raise RiskError(f"daily loss {day_pnl:.0f} reached the halt line {DAILY_LOSS_HALT:.0f}")
     return True
+
+
+# ---------------------------------------------------------------------------------------------------------------------------
+# Day-trade gate, adopted from the day-trader-skill pack's Risk Manager (MIT, third_party/day_trader_skill/trader-risk). It applies to intraday strategies such as S-046.
+# A BLOCK is final for that order; an exit is never blocked by a day limit (getting out must always be possible).
+from datetime import datetime, time as _time
+from zoneinfo import ZoneInfo
+
+_ET = ZoneInfo("America/New_York")
+DAY_MAX_LOSS_PER_TRADE = MAX_LOSS_PER_TRADE
+DAY_MAX_DAILY_LOSS = DAILY_LOSS_HALT
+DAY_MAX_TRADES = 3
+DAY_MIN_REWARD_RISK = 1.0
+DAY_NO_ENTRIES_BEFORE = _time(9, 45)
+DAY_NO_ENTRIES_AFTER = _time(15, 30)
+DAY_FLAT_BY = _time(15, 55)
+
+
+def check_day_trade(entry, stop, target, qty, now, placed_today, side="buy", is_exit=False, fresh_price=None):
+    """Return a list of BLOCK reasons (empty means PASS). entry, stop, target in dollars, qty whole shares, now a timezone-aware datetime,
+    placed_today a list of max losses (USD) of entries already placed today. fresh_price (under 15 minutes old) raises the entry that risk is measured from, so a plan
+    written at 10:15 cannot understate the risk at 10:55 after the price ran up. Exits (is_exit) are never blocked by the day limits."""
+    if is_exit:
+        return []
+    reasons = []
+    if side != "buy":
+        reasons.append("short: the day-trade tier is long only")
+    if qty < 1 or int(qty) != qty:
+        reasons.append("size: whole shares only")
+    base = max(entry, fresh_price) if fresh_price else entry
+    if stop is None:
+        reasons.append("stop: every day-trade entry needs a stop")
+        return reasons
+    if stop >= base:
+        reasons.append("stop: a long's stop goes under the entry")
+        return reasons
+    risk = base - stop
+    loss = qty * risk
+    if loss > DAY_MAX_LOSS_PER_TRADE + 1e-9:
+        reasons.append(f"loss: {qty} shares x {risk:.2f} risk a share = ${loss:.2f} at the stop, over ${DAY_MAX_LOSS_PER_TRADE:.0f} per trade")
+    if target is not None:
+        rr = (target - base) / risk
+        if rr < DAY_MIN_REWARD_RISK - 1e-9:
+            reasons.append(f"reward:risk: {rr:.2f} under the minimum {DAY_MIN_REWARD_RISK:.2f}")
+    if len(placed_today) >= DAY_MAX_TRADES:
+        reasons.append(f"trades: {len(placed_today)} entries already placed today (limit {DAY_MAX_TRADES})")
+    if sum(placed_today) + loss > DAY_MAX_DAILY_LOSS + 1e-9:
+        reasons.append(f"daily loss: today's max losses {sum(placed_today):.0f} plus this {loss:.0f} would pass ${DAY_MAX_DAILY_LOSS:.0f}")
+    t = now.astimezone(_ET)
+    if t.weekday() >= 5 or not (DAY_NO_ENTRIES_BEFORE <= t.time() <= DAY_NO_ENTRIES_AFTER):
+        reasons.append("window: new entries only 09:45 to 15:30 New York time on a trading day")
+    return reasons

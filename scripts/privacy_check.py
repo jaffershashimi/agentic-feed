@@ -10,6 +10,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 SKIP_DIRS = {".git", "__pycache__", ".venv", "node_modules"}
+# Vendored third-party code (MIT, pinned, unedited) is checked by tests/test_third_party_day_trader.py instead: its example configs and field names legitimately
+# mention balances and positions as variable names, never as data.
+SKIP_TOP = {"third_party"}
 TEXT = {".py", ".md", ".json", ".yml", ".yaml", ".txt", ".toml", ".csv", ".cfg", ".ini", ""}
 PATTERNS = {
     "private production origin": re.compile(r"[a-z0-9-]+\.[a-z0-9-]+\.chatgpt\.site", re.I),
@@ -28,7 +31,7 @@ def scan(root: Path = ROOT) -> list[str]:
     problems = []
     for path in sorted(root.rglob("*")):
         rel = path.relative_to(root)
-        if path.is_dir() or any(part in SKIP_DIRS for part in rel.parts) or rel in ALLOWED:
+        if path.is_dir() or any(part in SKIP_DIRS for part in rel.parts) or rel.parts[0] in SKIP_TOP or rel in ALLOWED:
             continue
         if rel.name.startswith(".env") and rel.name != ".env.example":
             problems.append(f"{rel}: environment file must not be committed")
