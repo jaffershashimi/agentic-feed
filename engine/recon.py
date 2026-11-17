@@ -17,6 +17,7 @@ from datetime import datetime, timezone
 
 from consumer import news_events as ne
 from consumer import oversold_forward as of
+from consumer.alpaca_options import is_option
 from engine import limits
 from engine.health import OUR_PREFIXES
 
@@ -55,7 +56,7 @@ def reconcile(positions, closed, now=None):
     def add(kind, sym, detail, age=None):
         breaks.append({"type": kind, "sym": sym, "detail": detail, "age_days": age})
 
-    held = {p["symbol"]: float(p["qty"]) for p in positions}
+    held = {p["symbol"]: float(p["qty"]) for p in positions if not is_option(p["symbol"])}   # option spreads (S-052) are checked by their own report
     for sym, qty in held.items():
         age = None
         if last_buy.get(sym):
