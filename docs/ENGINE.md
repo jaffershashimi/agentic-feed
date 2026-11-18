@@ -110,3 +110,15 @@ the bottleneck for the 100-trade gate is the number of trades, not the dollars. 
 limit execution are unchanged. Returns per trade stay comparable across the change; positions opened before it are 1,000 USD each. The engine's own backtest keeps 10 x 1,000 USD because it reports
 per-trade statistics; a 20-slot backtest would select more trades but is not needed for the monitor, which compares per-trade percentages. The proposed report-only gross-exposure tiers moved
 from 30 and 50 percent to 70 and 90 percent so the new normal does not read as an alarm. Nothing is enforced by those tiers.
+
+## Opening-auction paper experiment (2026-11-18)
+
+Question: can S-042 enter at the opening auction (about 32 bps cheaper than a market order at the open, per the as-implemented backtest)? One-share paper orders tagged `xlab-`, placed the evening before (`scripts/opg_experiment.py place`), read at 9:42 ET (`read`). Counts and prices only, no balances.
+
+Result:
+- **OPG (opening-auction) orders are accepted** by the paper API: market OPG and a marketable limit OPG were both accepted.
+- **None filled.** All three expired unfilled at about 9:31 ET. The paper engine does not simulate the opening auction, so there is no fill price to compare with the official open. Paper cannot measure auction fill quality; only real money could, and nothing here changes that.
+- **OPG plus an attached stop is rejected as one order.** An OTO order with time in force `opg` fails with HTTP 422: `oto orders support only "day" or "gtc" time_in_force`. A stop would have to be placed separately after the auction fill, which leaves a short unprotected window.
+- A GTC OTO test on the same day was accepted and then canceled by us, so the GTC parent plus GTC stop pattern the engine already uses is unaffected.
+
+Decision for S-042: **no change.** Opening-auction execution is not testable on paper and cannot carry the stop in one order, so the engine keeps its marketable limit orders at about 10:05 ET (the +0.23 percent per trade case). Real-fill quality versus the backtest is measured by the TCA stage on the forward trades. Revisit auction entry only after the real-money readiness review (Jan 11, 2027) and with the owner's approval.
