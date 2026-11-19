@@ -26,6 +26,7 @@ import json
 import math
 import os
 import sys
+import time
 import urllib.parse
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
@@ -273,6 +274,52 @@ def ensure_stops(call, st: dict, now: datetime, submit: bool, exclude=frozenset(
     return out
 
 
+TERMINAL_STATUSES = ("canceled", "filled", "expired", "rejected", "done_for_day", "replaced")
+
+
+def cancel_and_wait(call, ids, timeout: float = 10.0, sleep=time.sleep, clock=time.monotonic) -> None:
+    """Cancel orders and wait until the broker confirms. A cancel returns at once, but the shares stay reserved until it is processed, so an exit sent
+    right away can be refused (found 2026-11-19: the first live exit cancelled the stop, was refused, and left the position without a stop)."""
+    for oid in ids:
+        call("DELETE", f"/v2/orders/{oid}")
+    deadline = clock() + timeout
+    for oid in ids:
+        while True:
+            try:
+                status = (call("GET", f"/v2/orders/{oid}") or {}).get("status")
+            except GuardError:
+                break  # no longer readable: treat as gone
+            if status in TERMINAL_STATUSES or clock() >= deadline:
+                break
+            sleep(0.5)
+
+
+def symbol_sell_ids(st: dict, sym: str) -> list:
+    """Ids of the open sell orders for `sym` (the stop), including stop legs nested in a parent order, without repeats."""
+    ids = []
+    for o in st["open_orders"]:
+        if o.get("symbol") == sym and o.get("side") == "sell":
+            ids.append(o["id"])
+        for leg in (o.get("legs") or []):
+            if leg.get("symbol") == sym and leg.get("side") == "sell":
+                ids.append(leg["id"])
+    return list(dict.fromkeys(ids))
+
+
+def send_exit(call, st: dict, sym: str, body: dict, leaving, now: datetime, out: dict, state_dir=None, tag: str = TAG, sleep=time.sleep):
+    """Cancel the position's stop, wait for the broker to confirm, send the exit. If the exit is refused, put the stop back at once and record the refusal
+    (a position must never be left without its stop). Returns the broker response or None."""
+    cancel_and_wait(call, symbol_sell_ids(st, sym), sleep=sleep)
+    try:
+        return call("POST", "/v2/orders", body)
+    except GuardError as exc:
+        if state_dir is not None:
+            ap.log_event(state_dir, {"action": "exit-refused", "sym": sym, "error": str(exc)[:300]})
+        out["skipped"].append({"sym": sym, "why": "ORDER_REFUSED", "detail": str(exc).replace(sym, "<sym>")[:160]})
+        out["stop_restore"] = ensure_stops(call, broker_state(call, tag), now, True, exclude=set(leaving) - {sym}, tag=tag)
+        return None
+
+
 def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetch=None, mode: str = "close", entries_allowed: bool = True) -> dict:
     """entries_allowed=False is the pre-trade gate's partial block: exits still go out (getting out must always be possible), new entries are skipped and named."""
     ap.check_not_halted(state_dir)
@@ -323,20 +370,16 @@ def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetc
     for e in exits:
         if e["action"] != "EXIT":
             continue
-        for o in st["open_orders"]:
-            if o.get("symbol") == e["sym"] and o.get("side") == "sell":
-                call("DELETE", f"/v2/orders/{o['id']}")
-            for leg in (o.get("legs") or []):
-                if leg.get("symbol") == e["sym"] and leg.get("side") == "sell":
-                    call("DELETE", f"/v2/orders/{leg['id']}")
         body = {"symbol": e["sym"], "qty": str(e["qty"]), "side": "sell", "type": "market", "time_in_force": "day",
                 "client_order_id": f"{TAG}x-{e['sym']}-{asof.strftime('%y%m%d')}"}
         if morning:
             body, why = morning_limit(body, qs.get(e["sym"]), "sell")
             if body is None:
-                out["skipped"].append({"sym": e["sym"], "why": "EXIT_" + why})  # held, retried on the next run
+                out["skipped"].append({"sym": e["sym"], "why": "EXIT_" + why})  # held with its stop untouched, retried on the next run
                 continue
-        resp = call("POST", "/v2/orders", body)
+        resp = send_exit(call, st, e["sym"], body, leaving, now, out, state_dir)
+        if resp is None:
+            continue
         ap.log_event(state_dir, {"action": "s042-exit", "sym": e["sym"], "reason": e["reason"], "order_id": resp.get("id")})
         out["orders"].append({"sym": e["sym"], "side": "sell", "id": resp.get("id"), "status": resp.get("status")})
     out["stops"] = ensure_stops(call, st, now, True, exclude=leaving)
@@ -349,7 +392,11 @@ def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetc
             if body is None:
                 out["skipped"].append({"sym": c["sym"], "why": "ENTRY_" + why})
                 continue
-        resp = call("POST", "/v2/orders", body)
+        try:
+            resp = call("POST", "/v2/orders", body)
+        except GuardError as exc:
+            out["skipped"].append({"sym": c["sym"], "why": "ORDER_REFUSED", "detail": str(exc).replace(c["sym"], "<sym>")[:160]})
+            continue
         ap.log_event(state_dir, {"action": "s042-entry", "sym": c["sym"], "z": c["z"], "rsi2": c["rsi2"], "order_id": resp.get("id")})
         out["orders"].append({"sym": c["sym"], "side": "buy", "id": resp.get("id"), "status": resp.get("status")})
     return out
