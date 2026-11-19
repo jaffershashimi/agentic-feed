@@ -1,6 +1,6 @@
 {
  "core_ok": true,
- "generated_at": "2026-11-19T19:35:07+00:00",
+ "generated_at": "2026-11-19T22:46:52+00:00",
  "providers": [
   {
    "as_of": "2026-11-18",
@@ -12,7 +12,7 @@
    "url": "https://api.stlouisfed.org/fred/series/observations?series_id=BAMLH0A0HYM2&file_type=json&observation_start=2024-01-01"
   },
   {
-   "as_of": "2026-11-17",
+   "as_of": "2026-11-18",
    "error": null,
    "name": "DGS10",
    "ok": true,
@@ -21,7 +21,7 @@
    "url": "https://api.stlouisfed.org/fred/series/observations?series_id=DGS10&file_type=json&observation_start=2024-01-01"
   },
   {
-   "as_of": "2026-11-17",
+   "as_of": "2026-11-18",
    "error": null,
    "name": "DGS2",
    "ok": true,
@@ -66,7 +66,7 @@
    "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/SPX_History.csv"
   },
   {
-   "as_of": "2026-11-18",
+   "as_of": "2026-11-19",
    "error": null,
    "name": "T10Y2Y",
    "ok": true,
@@ -84,7 +84,7 @@
    "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX_History.csv"
   },
   {
-   "as_of": "2026-11-18",
+   "as_of": "2026-11-19",
    "error": null,
    "name": "VIX3M",
    "ok": true,
@@ -93,7 +93,7 @@
    "url": "https://cdn.cboe.com/api/global/us_indices/daily_prices/VIX3M_History.csv"
   },
   {
-   "as_of": "2026-11-18",
+   "as_of": "2026-11-19",
    "error": null,
    "name": "VIX9D",
    "ok": true,
@@ -112,5 +112,5 @@
   }
  ],
  "schema": "agentic-feed-health/1",
- "session": "2026-11-18"
+ "session": "2026-11-19"
 }
