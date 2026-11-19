@@ -52,6 +52,7 @@ class Fake:
         self.calls = []
         self.splits, self.actions_error = [], False
         self.quote = {"bp": 100.0, "ap": 100.1}
+        self.refuse_sells = False   # the broker refuses every sell order (as it did on 2026-11-19)
 
     def __call__(self, method, path, body=None, host="paper"):
         self.calls.append((method, path, body))
@@ -69,12 +70,18 @@ class Fake:
             if self.actions_error:
                 raise ap.GuardError("HTTP 500")
             return {"corporate_actions": {"forward_splits": [{"symbol": s, "ex_date": "2026-11-17"} for s in self.splits]}}
+        if method == "GET" and path.startswith("/v2/orders/"):
+            return {"id": path.rsplit("/", 1)[1], "status": "canceled"}
         if method == "POST" and path == "/v2/orders":
+            if self.refuse_sells and body["side"] == "sell" and body.get("type") != "stop":
+                raise ap.GuardError('HTTP 403 from paper API: {"message":"insufficient qty available for order for ' + body["symbol"] + '"}')
             order = {"id": f"id-{len(self.calls)}", "status": "accepted", "symbol": body["symbol"], "side": body["side"], "client_order_id": body["client_order_id"]}
             if body["side"] == "buy":
                 self.open_orders.append(order)
             return order
         if method == "DELETE":
+            gone = path.rsplit("/", 1)[1]
+            self.open_orders = [o for o in self.open_orders if o.get("id") != gone]
             return {}
         raise AssertionError(f"unexpected {method} {path}")
 
@@ -238,6 +245,47 @@ class RunTests(unittest.TestCase):
         sells = [b for b in fake.posts() if b["side"] == "sell"]
         self.assertEqual((len(sells), sells[0]["symbol"], sells[0]["qty"], sells[0]["time_in_force"]), (1, "HELD", "7", "day"))
         self.assertEqual(out["exits"][0]["reason"], "CLOSE_ABOVE_SMA5")
+
+    def held_exit_fixture(self):
+        d = market()
+        d["HELD"] = series([100] * 325 + [90, 90, 90, 90, 95])
+        entry = d["HELD"]["date"][-3]
+        fake = Fake(positions=[{"symbol": "HELD", "qty": "7"}],
+                    closed=[{"client_order_id": "s042v3-HELD-261111", "filled_qty": "7", "side": "buy", "symbol": "HELD", "filled_at": entry + "T14:30:01Z",
+                             "legs": [{"side": "sell", "stop_price": "90.00"}]}],
+                    open_orders=[{"symbol": "HELD", "side": "sell", "type": "stop", "status": "new", "qty": "7", "id": "stop-1", "client_order_id": "x"}])
+        return d, fake
+
+    def test_a_refused_exit_puts_the_stop_back_and_does_not_stop_the_run(self):
+        """2026-11-19: the exit cancelled the stop, the broker refused the sell, and the position was left without a stop."""
+        d, fake = self.held_exit_fixture()
+        fake.refuse_sells = True
+        out = of.run(fake, ["AAA", "BBB", "CCC", "HELD"], AFTER_CLOSE, self.state, True, fetch_for(d))
+        refused = [s for s in out["skipped"] if s["why"] == "ORDER_REFUSED"]
+        self.assertEqual(len(refused), 1)
+        self.assertNotIn("HELD", refused[0]["detail"])      # symbols never go into a log
+        self.assertIn("insufficient qty", refused[0]["detail"])
+        stops = [b for b in fake.posts() if b.get("type") == "stop"]
+        self.assertEqual((len(stops), stops[0]["symbol"], stops[0]["qty"], stops[0]["time_in_force"]), (1, "HELD", "7", "gtc"))
+        self.assertEqual(sorted(b["symbol"] for b in fake.posts() if b["side"] == "buy"), ["AAA", "CCC"])   # entries still went out
+
+    def test_an_exit_with_no_usable_quote_leaves_the_stop_untouched(self):
+        d, fake = self.held_exit_fixture()
+        fake.quote = {"bp": 90.0, "ap": 110.0}   # spread far too wide
+        fake.is_open = True
+        monday_10am = datetime(2026, 11, 16, 15, 0, tzinfo=timezone.utc)
+        out = of.run(fake, ["AAA", "BBB", "CCC", "HELD"], monday_10am, self.state, True, fetch_for(d), mode="morning")
+        self.assertIn({"sym": "HELD", "why": "EXIT_QUOTE_TOO_WIDE"}, out["skipped"])
+        self.assertFalse([c for c in fake.calls if c[0] == "DELETE"])
+
+    def test_cancel_and_wait_polls_until_the_broker_confirms(self):
+        seen, states = [], iter(["pending_cancel", "pending_cancel", "canceled"])
+
+        def call(method, path, body=None, host="paper"):
+            seen.append((method, path))
+            return {"status": next(states)} if method == "GET" else {}
+        of.cancel_and_wait(call, ["a"], sleep=lambda s: None)
+        self.assertEqual([m for m, _ in seen], ["DELETE", "GET", "GET", "GET"])
 
     def test_corporate_action_soon_skips_the_name_and_endpoint_errors_are_soft(self):
         fake = Fake()

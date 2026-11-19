@@ -116,6 +116,18 @@ class ExitTests(Base):
         self.assertEqual((len(sells), sells[0]["type"], sells[0]["time_in_force"], sells[0]["client_order_id"][:9]), (1, "limit", "day", "s048b55mx"))
         self.assertTrue(any(c[0] == "DELETE" for c in fake.calls))
 
+    def test_a_refused_exit_puts_the_stop_back_and_records_the_refusal(self):
+        fake = self.held("2026-11-05")
+        fake.closed = [entry_order("AAA", 18, filled="2026-11-05T15:00:00Z")]
+        fake.open_orders = [{"id": "stop1", "symbol": "AAA", "side": "sell", "type": "stop", "qty": "18", "status": "new", "client_order_id": "x", "legs": []}]
+        fake.refuse_sells = True
+        out = self.go(fake, market(last_close_factor=0.80), submit=True)
+        refused = [s for s in out["skipped"] if s["why"] == "ORDER_REFUSED"]
+        self.assertEqual(len(refused), 1)
+        self.assertNotIn("AAA", refused[0]["detail"])
+        stops = [b for b in fake.posts() if b.get("type") == "stop"]
+        self.assertEqual((len(stops), stops[0]["time_in_force"], stops[0]["qty"]), (1, "gtc", "18"))
+
     def test_a_position_without_a_live_stop_gets_one_on_submit(self):
         fake = self.held("2026-11-10")
         out = self.go(fake, market(last_close_factor=1.001), submit=True)

@@ -117,18 +117,14 @@ def run(call, universe, now, state_dir, submit, fetch=None, mode="morning", entr
     for e in exits:
         if e["action"] != "EXIT":
             continue
-        for o in st["open_orders"]:
-            if o.get("symbol") == e["sym"] and o.get("side") == "sell":
-                call("DELETE", f"/v2/orders/{o['id']}")
-            for leg in (o.get("legs") or []):
-                if leg.get("symbol") == e["sym"] and leg.get("side") == "sell":
-                    call("DELETE", f"/v2/orders/{leg['id']}")
         body, why = of.morning_limit({"symbol": e["sym"], "qty": str(e["qty"]), "side": "sell", "type": "market", "time_in_force": "day",
                                       "client_order_id": f"{TAG}x-{e['sym']}-{asof.strftime('%y%m%d')}"}, qs.get(e["sym"]), "sell")
         if body is None:
-            out["skipped"].append({"sym": e["sym"], "why": "EXIT_" + why})
+            out["skipped"].append({"sym": e["sym"], "why": "EXIT_" + why})  # held with its stop untouched
             continue
-        resp = call("POST", "/v2/orders", body)
+        resp = of.send_exit(call, st, e["sym"], body, leaving, now, out, None, tag=TAG)
+        if resp is None:
+            continue
         out["orders"].append({"sym": e["sym"], "side": "sell", "id": resp.get("id"), "status": resp.get("status")})
     out["stops"] = of.ensure_stops(call, st, now, True, exclude=leaving, tag=TAG)
     for body in chosen:
