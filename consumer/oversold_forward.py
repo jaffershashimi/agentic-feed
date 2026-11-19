@@ -392,11 +392,7 @@ def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetc
             if body is None:
                 out["skipped"].append({"sym": c["sym"], "why": "ENTRY_" + why})
                 continue
-        try:
-            resp = call("POST", "/v2/orders", body)
-        except GuardError as exc:
-            out["skipped"].append({"sym": c["sym"], "why": "ORDER_REFUSED", "detail": str(exc).replace(c["sym"], "<sym>")[:160]})
-            continue
+        resp = call("POST", "/v2/orders", body)
         ap.log_event(state_dir, {"action": "s042-entry", "sym": c["sym"], "z": c["z"], "rsi2": c["rsi2"], "order_id": resp.get("id")})
         out["orders"].append({"sym": c["sym"], "side": "buy", "id": resp.get("id"), "status": resp.get("status")})
     return out

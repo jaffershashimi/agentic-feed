@@ -135,11 +135,7 @@ def run(call, universe, now, state_dir, submit, fetch=None, mode="morning", entr
         if limit is None:
             out["skipped"].append({"sym": body["symbol"], "why": "ENTRY_" + why})
             continue
-        try:
-            resp = call("POST", "/v2/orders", limit)
-        except ap.GuardError as exc:
-            out["skipped"].append({"sym": body["symbol"], "why": "ORDER_REFUSED", "detail": str(exc).replace(body["symbol"], "<sym>")[:160]})
-            continue
+        resp = call("POST", "/v2/orders", limit)
         out["orders"].append({"sym": body["symbol"], "side": "buy", "id": resp.get("id"), "status": resp.get("status")})
     return out
 
