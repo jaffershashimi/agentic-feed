@@ -1,5 +1,5 @@
 {
- "artifactHash": "752bc0c2400e7629625dbd48d0b05f47613b8af0d3ba786c94dce148fca7b969",
+ "artifactHash": "0bf9f6a2e7a09dd49a724b88805c024cb153cceb983c0c65c2f5ad84a8d4628a",
  "attemptedModelCount": 5,
  "attemptedStrategyHashes": [
   "0896efd7c3a01a56da8d0af3896726c1b0395797c700e5d1ed84b5e8961ea7fd",
@@ -8,8 +8,8 @@
   "7536a8ade191fd0a90b5c816b96ac15dcae548bfe3d2a770631e0bada13b17a9",
   "c571fcbf5fe4dcb7ee199091c1a78b8398ac2b5fd2dd4f70f4bbe1ffa4f27f22"
  ],
- "availableAt": "2026-11-18",
- "codeCommit": "6d76641df509c2702dd92e4485f6edb08b0365e7",
+ "availableAt": "2026-11-19",
+ "codeCommit": "dce40ee5434b5ece7b8996eb12ad6057d75d6616",
  "codeHash": "814bbcdfa7780eb7fa910721589fb209b1bd51b3b6a80ace952aab7707ae8196",
  "costModel": {
   "fees_pct_of_debit": 0.01,
@@ -19,7 +19,7 @@
  "coverage": {
   "call_above_sma200": {
    "purged_cross_split": 10,
-   "unresolved_end_of_history": 8
+   "unresolved_end_of_history": 7
   },
   "call_every_session": {
    "purged_cross_split": 10,
@@ -38,9 +38,9 @@
    "unresolved_end_of_history": 3
   }
  },
- "createdAt": "2026-11-19T19:35:14+00:00",
+ "createdAt": "2026-11-20T19:12:51+00:00",
  "dataClass": "HISTORICAL_UNDERLYING_MODELED_OPTIONS",
- "datasetHash": "24af120f8d8ea64c747b8496a0458ba7a4894aa5a10395420961cbc5454cf801",
+ "datasetHash": "b6f79ed2c3bc59ea4228ae4afa74ab7cd4fdfe9a6b372f9b2b042bd1cf5ce3ea",
  "datasetLicenseRef": "Cboe public index history CSVs (SPX, VIX); terms pending P0-3 verification (docs/DATA_SOURCES.md)",
  "experimentId": "desk-structure-historical-v1",
  "firstDate": "1990-01-02",
@@ -58,23 +58,23 @@
    "holdout": {
     "ci_excludes_zero": true,
     "exits": {
-     "stop": 812,
+     "stop": 813,
      "target": 296,
      "time": 67
     },
     "max_drawdown_at_10pct_allocation": 0.6842,
     "mean_ci95": [
-     -0.09048,
-     -0.03806
+     -0.08862,
+     -0.04155
     ],
-    "mean_net": -0.06321,
-    "n": 1175,
+    "mean_net": -0.06336,
+    "n": 1176,
     "non_overlapping_trades": 259,
     "p01": -0.4118,
     "p05": -0.3482,
     "payoff_ratio": 1.575,
-    "resampled_outcomes": 82250,
-    "win_rate": 0.286,
+    "resampled_outcomes": 82320,
+    "win_rate": 0.2857,
     "worst": -0.4799
    },
    "train": {
@@ -86,8 +86,8 @@
     },
     "max_drawdown_at_10pct_allocation": 0.9952,
     "mean_ci95": [
-     -0.06503,
-     -0.02469
+     -0.06522,
+     -0.02595
     ],
     "mean_net": -0.04651,
     "n": 4486,
@@ -108,8 +108,8 @@
     },
     "max_drawdown_at_10pct_allocation": 0.6447,
     "mean_ci95": [
-     -0.06399,
-     0.00644
+     -0.05913,
+     0.0041
     ],
     "mean_net": -0.03036,
     "n": 1248,
@@ -126,23 +126,23 @@
    "holdout": {
     "ci_excludes_zero": true,
     "exits": {
-     "stop": 1008,
+     "stop": 1009,
      "target": 391,
      "time": 68
     },
     "max_drawdown_at_10pct_allocation": 0.812,
     "mean_ci95": [
-     -0.08246,
-     -0.03362
+     -0.08378,
+     -0.03447
     ],
-    "mean_net": -0.05823,
-    "n": 1467,
+    "mean_net": -0.05835,
+    "n": 1468,
     "non_overlapping_trades": 333,
     "p01": -0.4418,
     "p05": -0.3632,
     "payoff_ratio": 1.592,
-    "resampled_outcomes": 82152,
-    "win_rate": 0.2945,
+    "resampled_outcomes": 82208,
+    "win_rate": 0.2943,
     "worst": -0.5491
    },
    "train": {
@@ -211,23 +211,23 @@
    "holdout": {
     "ci_excludes_zero": true,
     "exits": {
-     "stop": 1070,
+     "stop": 1071,
      "target": 397,
      "time": 0
     },
     "max_drawdown_at_10pct_allocation": 0.9873,
     "mean_ci95": [
-     -0.09822,
-     -0.04993
+     -0.09876,
+     -0.05202
     ],
-    "mean_net": -0.07457,
-    "n": 1467,
-    "non_overlapping_trades": 474,
+    "mean_net": -0.07466,
+    "n": 1468,
+    "non_overlapping_trades": 475,
     "p01": -0.5743,
     "p05": -0.4603,
-    "payoff_ratio": 1.768,
-    "resampled_outcomes": 82152,
-    "win_rate": 0.2706,
+    "payoff_ratio": 1.769,
+    "resampled_outcomes": 82208,
+    "win_rate": 0.2704,
     "worst": -0.8679
    },
    "train": {
@@ -239,8 +239,8 @@
     },
     "max_drawdown_at_10pct_allocation": 1.0,
     "mean_ci95": [
-     -0.10598,
-     -0.07346
+     -0.10661,
+     -0.07469
     ],
     "mean_net": -0.08656,
     "n": 6296,
@@ -261,8 +261,8 @@
     },
     "max_drawdown_at_10pct_allocation": 0.9911,
     "mean_ci95": [
-     -0.12325,
-     -0.05913
+     -0.12515,
+     -0.06587
     ],
     "mean_net": -0.0976,
     "n": 1510,
@@ -279,23 +279,23 @@
    "holdout": {
     "ci_excludes_zero": true,
     "exits": {
-     "stop": 144,
+     "stop": 145,
      "target": 49,
      "time": 0
     },
-    "max_drawdown_at_10pct_allocation": 0.7611,
+    "max_drawdown_at_10pct_allocation": 0.7659,
     "mean_ci95": [
-     -0.18333,
-     -0.06941
+     -0.18666,
+     -0.06285
     ],
-    "mean_net": -0.13358,
-    "n": 193,
-    "non_overlapping_trades": 80,
+    "mean_net": -0.13393,
+    "n": 194,
+    "non_overlapping_trades": 81,
     "p01": -0.8072,
     "p05": -0.5156,
-    "payoff_ratio": 1.43,
-    "resampled_outcomes": 83183,
-    "win_rate": 0.2539,
+    "payoff_ratio": 1.435,
+    "resampled_outcomes": 83226,
+    "win_rate": 0.2526,
     "worst": -0.8679
    },
    "train": {
@@ -307,8 +307,8 @@
     },
     "max_drawdown_at_10pct_allocation": 0.9693,
     "mean_ci95": [
-     -0.10388,
-     -0.0554
+     -0.10262,
+     -0.04426
     ],
     "mean_net": -0.08198,
     "n": 1209,
@@ -346,12 +346,12 @@
  },
  "observationCounts": {
   "call_above_sma200": {
-   "holdout": 1175,
+   "holdout": 1176,
    "train": 4486,
    "validation": 1248
   },
   "call_every_session": {
-   "holdout": 1467,
+   "holdout": 1468,
    "train": 6294,
    "validation": 1504
   },
@@ -361,12 +361,12 @@
    "validation": 0
   },
   "put_every_session": {
-   "holdout": 1467,
+   "holdout": 1468,
    "train": 6296,
    "validation": 1510
   },
   "put_vix_above_25": {
-   "holdout": 193,
+   "holdout": 194,
    "train": 1209,
    "validation": 198
   }
@@ -380,14 +380,14 @@
   "target": 0.3
  },
  "policyHash": "64ee60e64b548a9bccc642c40eb8ee93885a9e697870a81ed510f536a16a9632",
- "rows": 9285,
- "runKey": "3976be4694e3c1bd8505b7171372f82c9bd5cb60f99782559542be556dd246e1",
- "scenarioCount": 987665,
+ "rows": 9286,
+ "runKey": "39edb5b50efa2aff6b1c0d8c85fc12748c692890e1a1f6d43ca0e96836bc9fb2",
+ "scenarioCount": 987890,
  "schemaVersion": "research-run/1",
  "seed": 20261024,
  "sourceHashes": {
-  "SPX": "37d334af8c1a67ed6246858e91eaa619d6a3c4fbcedf7f001ae7ca541c9d6b23",
-  "VIX": "c0c3868399a0d97e7d5052d898dacfd054de654ed6d587614564b4ca40ed1883"
+  "SPX": "a441124b04c0cde717ab8edaef25c82c22a78ef3981025e10f3f8a6254342ec1",
+  "VIX": "0d9c033a1ee06d41832ef98ce17d84910c8c386d890daca5cb24bbf9cd4af8d5"
  },
  "splits": {
   "holdout": [
@@ -432,18 +432,18 @@
   "overnight_gap": -0.07,
   "results": {
    "call_every_session": {
-    "mean_net": -0.608,
-    "n": 1467,
+    "mean_net": -0.6079,
+    "n": 1468,
     "p05": -0.8137,
     "worst": -0.8761
    },
    "put_every_session": {
-    "mean_net": 2.6014,
-    "n": 1467,
+    "mean_net": 2.6007,
+    "n": 1468,
     "p05": 1.4281,
     "worst": -0.1777
    }
   }
  },
- "uniqueObservationCount": 27047
+ "uniqueObservationCount": 27051
 }
