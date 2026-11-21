@@ -195,6 +195,31 @@ class ReportTests(unittest.TestCase):
         self.assertEqual((r["closed_trades"], r["mean_ret_pct"], r["open_positions"]), (0, None, 0))
 
 
+def losing_closed(n, qty, entry, exit_px, start=0):
+    """n closed S-042 trades: a filled entry whose stop leg filled at exit_px."""
+    return [{"id": f"h{start + i}", "client_order_id": f"s042v3-L{start + i:03d}-261105", "side": "buy", "symbol": f"L{start + i:03d}", "filled_qty": str(qty), "filled_avg_price": str(entry),
+             "filled_at": "2026-11-06T14:30:00Z", "legs": [{"side": "sell", "filled_qty": str(qty), "filled_avg_price": str(exit_px), "type": "stop"}]} for i in range(n)]
+
+
+class HaltTests(unittest.TestCase):
+    def test_not_halted_on_a_small_loss_or_few_trades(self):
+        self.assertFalse(of.halt_status(Fake(closed=losing_closed(9, 10, 100, 90)))["halted"])          # -900 USD, mean -10 percent, only 9 trades
+        self.assertFalse(of.halt_status(Fake(closed=losing_closed(29, 10, 100, 99)))["halted"])         # 29 trades: the mean rule needs 30
+
+    def test_halts_below_the_usd_line(self):
+        st = of.halt_status(Fake(closed=losing_closed(2, 1000, 100, 90)))                              # -20,000 USD
+        self.assertEqual((st["halted"], st["reason"], st["closed"]), (True, "HALT_USD", 2))
+
+    def test_halts_on_a_negative_mean_at_30_closed_trades(self):
+        st = of.halt_status(Fake(closed=losing_closed(30, 10, 100, 99)))                               # -300 USD total, mean -1 percent
+        self.assertEqual((st["halted"], st["reason"], st["closed"]), (True, "HALT_MEAN", 30))
+
+    def test_an_unreadable_order_never_halts_but_blocks_entries(self):
+        broken = Fake(closed=[{"client_order_id": "s042v3-BAD-261105", "side": "buy", "symbol": "BAD", "filled_qty": "5"}])    # no fill price
+        st = of.halt_status(broken)
+        self.assertEqual((st["halted"], st["reason"]), (False, "CHECK_ERROR"))
+
+
 class RunTests(unittest.TestCase):
     def setUp(self):
         self._td = tempfile.TemporaryDirectory()
@@ -238,7 +263,7 @@ class RunTests(unittest.TestCase):
         d["HELD"] = series([100] * 325 + [90, 90, 90, 90, 95])
         entry = d["HELD"]["date"][-3]
         fake = Fake(positions=[{"symbol": "HELD", "qty": "7"}],
-                    closed=[{"client_order_id": "s042v3-HELD-261111", "filled_qty": "7", "side": "buy", "symbol": "HELD", "filled_at": entry + "T14:30:01Z"}],
+                    closed=[{"client_order_id": "s042v3-HELD-261111", "filled_qty": "7", "filled_avg_price": "100", "side": "buy", "symbol": "HELD", "filled_at": entry + "T14:30:01Z"}],
                     open_orders=[{"symbol": "HELD", "side": "sell", "id": "stop-1", "client_order_id": "x"}])
         out = of.run(fake, ["AAA", "BBB", "CCC", "HELD"], AFTER_CLOSE, self.state, True, fetch_for(d))
         self.assertIn(("DELETE", "/v2/orders/stop-1", None), fake.calls)
@@ -251,7 +276,7 @@ class RunTests(unittest.TestCase):
         d["HELD"] = series([100] * 325 + [90, 90, 90, 90, 95])
         entry = d["HELD"]["date"][-3]
         fake = Fake(positions=[{"symbol": "HELD", "qty": "7"}],
-                    closed=[{"client_order_id": "s042v3-HELD-261111", "filled_qty": "7", "side": "buy", "symbol": "HELD", "filled_at": entry + "T14:30:01Z",
+                    closed=[{"client_order_id": "s042v3-HELD-261111", "filled_qty": "7", "filled_avg_price": "100", "side": "buy", "symbol": "HELD", "filled_at": entry + "T14:30:01Z",
                              "legs": [{"side": "sell", "stop_price": "90.00"}]}],
                     open_orders=[{"symbol": "HELD", "side": "sell", "type": "stop", "status": "new", "qty": "7", "id": "stop-1", "client_order_id": "x"}])
         return d, fake
@@ -286,6 +311,23 @@ class RunTests(unittest.TestCase):
             return {"status": next(states)} if method == "GET" else {}
         of.cancel_and_wait(call, ["a"], sleep=lambda s: None)
         self.assertEqual([m for m, _ in seen], ["DELETE", "GET", "GET", "GET"])
+
+    def test_halt_exits_only_this_strategy_and_sends_no_entry(self):
+        """Owner decision 2026-11-21: the S-042 halt closes S-042 positions and blocks S-042 entries, nothing else."""
+        d = market()
+        d["HELD"] = series([100] * 325 + [90, 90, 90, 90, 80])     # still below its SMA5: no rule exit on its own
+        entry = d["HELD"]["date"][-3]
+        held_entry = {"client_order_id": "s042v3-HELD-261111", "filled_qty": "7", "filled_avg_price": "100", "side": "buy", "symbol": "HELD", "filled_at": entry + "T14:30:01Z",
+                      "legs": [{"side": "sell", "stop_price": "90.00"}]}
+        fake = Fake(positions=[{"symbol": "HELD", "qty": "7"}], closed=[held_entry] + losing_closed(2, 1000, 100, 90),
+                    open_orders=[{"symbol": "HELD", "side": "sell", "type": "stop", "status": "new", "qty": "7", "id": "stop-1", "client_order_id": "x"}])
+        fake.is_open = True
+        out = of.run(fake, ["AAA", "BBB", "CCC", "HELD"], datetime(2026, 11, 16, 15, 0, tzinfo=timezone.utc), self.state, True, fetch_for(d), mode="morning")
+        self.assertTrue(out["halted"])
+        self.assertEqual([e["reason"] for e in out["exits"] if e["sym"] == "HELD"], ["S042_HALT"])
+        self.assertEqual([b["symbol"] for b in fake.posts() if b["side"] == "buy"], [])                 # no entry
+        self.assertEqual([(b["symbol"], b["side"]) for b in fake.posts() if b["side"] == "sell"], [("HELD", "sell")])
+        self.assertTrue(all(s["why"] == "ENTRY_BLOCKED_BY_HALT" for s in out["skipped"] if s["sym"] in ("AAA", "CCC")))
 
     def test_corporate_action_soon_skips_the_name_and_endpoint_errors_are_soft(self):
         fake = Fake()

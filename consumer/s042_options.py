@@ -266,8 +266,12 @@ def manage(call, now: datetime, state_dir: Path, submit: bool) -> dict:
     quotes = ao.get_quotes(call, [p["symbol"] for g in groups.values() for p in g])
     clock = call("GET", "/v2/clock")
     live = {o.get("client_order_id") for o in state["orders"]}
+    halted = of.halt_status(call)["halted"]   # owner decision 2026-11-21: the S-042 halt also closes this strategy's spreads, and nothing else
+    out["halted"] = halted
     for tag, group in sorted(groups.items()):
         d = decide_close(group, quotes, tag, today)
+        if halted and d["action"] != "CLOSE":
+            d = {"action": "CLOSE", "reason": "S042_HALT", "pl_pct": d.get("pl_pct")}
         if d["action"] != "CLOSE":
             continue
         out["closing"] += 1
