@@ -334,10 +334,24 @@ class EngineTests(unittest.TestCase):
 
 class BrokerTests(unittest.TestCase):
     def test_new_env_maps_names_and_refuses_missing(self):
-        e = B.new_env({"ALPACA_OPT_API_KEY": "K\nextra", "ALPACA_OPT_SECRET_KEY": " S "})
+        e = B.new_env({"OPT_LAB_ALPACA_KEY_ID": "K\nextra", "OPT_LAB_ALPACA_SECRET_KEY": " S "})
         self.assertEqual((e["ALPACA_API_KEY"], e["ALPACA_SECRET_KEY"]), ("K", "S"))
         with self.assertRaises(Exception):
             B.new_env({})
+
+    def test_existing_account_client_is_read_only(self):
+        calls = []
+        ro = B.read_only(lambda m, p, b=None, host="paper": calls.append((m, p)) or {})
+        ro("GET", "/v2/account")
+        for method in ("POST", "DELETE"):
+            with self.assertRaises(Exception):
+                ro(method, "/v2/orders", {})
+        self.assertEqual(calls, [("GET", "/v2/account")])
+
+    def test_only_the_owners_secret_names_are_used_to_send(self):
+        self.assertEqual((B.NEW_KEY_NAME, B.NEW_SECRET_NAME), ("OPT_LAB_ALPACA_KEY_ID", "OPT_LAB_ALPACA_SECRET_KEY"))
+        with self.assertRaises(Exception):
+            B.new_env({"ALPACA_API_KEY": "existing", "ALPACA_SECRET_KEY": "existing"})   # the existing names are never a fallback
 
     def test_account_check_levels_and_distinct(self):
         new = lambda m, p, b=None, host="paper": {"id": "A", "account_number": "1", "status": "ACTIVE", "options_approved_level": 3, "options_trading_level": 3, "options_buying_power": "100"}

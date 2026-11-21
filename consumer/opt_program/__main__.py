@@ -45,7 +45,8 @@ def main(argv=None, env=None, call_new=None, call_old=None, now=None, out=print)
         if call_new is None:
             call_new = ap.make_client(B.new_env(env))
         if call_old is None and env.get("ALPACA_API_KEY") and env.get("ALPACA_SECRET_KEY"):
-            call_old = ap.make_client({"ALPACA_API_KEY": B._first_line(env["ALPACA_API_KEY"]), "ALPACA_SECRET_KEY": B._first_line(env["ALPACA_SECRET_KEY"]), "ALPACA_PAPER_TRADE": "true"})
+            call_old = B.read_only(ap.make_client({"ALPACA_API_KEY": B._first_line(env["ALPACA_API_KEY"]), "ALPACA_SECRET_KEY": B._first_line(env["ALPACA_SECRET_KEY"]),
+                                                   "ALPACA_PAPER_TRADE": "true"}))
         chk = B.account_check(call_new, call_old)
         if args.cmd == "account-check":
             out("account check: " + json.dumps(chk))

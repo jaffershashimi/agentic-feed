@@ -9,7 +9,7 @@ python3 -m consumer.opt_program run                      # dry run: plans, sends
 python3 -m consumer.opt_program run --submit             # live: needs approval, multi-leg level, a different account, and the workflow's OPTIONS_SUBMIT switch
 python3 -m consumer.opt_program report | verify | checkpoint
 ```
-Keys come from NEW names (`ALPACA_OPT_API_KEY`, `ALPACA_OPT_SECRET_KEY`), sent only to the paper host (`consumer.alpaca_paper.make_client`). The existing account's keys are read only to prove the two accounts differ.
+Keys come from the owner's NEW secrets `OPT_LAB_ALPACA_KEY_ID` and `OPT_LAB_ALPACA_SECRET_KEY` and nothing else, sent only to the paper host (`consumer.alpaca_paper.make_client`). The existing account's keys (`ALPACA_API_KEY`, `ALPACA_SECRET_KEY`) are never a fallback and are read only through a GET-only client, to prove the two accounts differ. Nothing here can write or change a secret.
 
 ## Rules enforced in code (tested)
 | Rule | Where |

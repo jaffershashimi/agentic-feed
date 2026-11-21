@@ -9,11 +9,24 @@ from consumer import alpaca_paper as ap
 from . import structures as S
 
 
+NEW_KEY_NAME = "OPT_LAB_ALPACA_KEY_ID"        # the owner's names, 2026-11-21: the only secrets this program may use to send anything
+NEW_SECRET_NAME = "OPT_LAB_ALPACA_SECRET_KEY"
+
+
+def read_only(call):
+    """Wrap a client so it can only GET. Used for the existing account, whose keys are read solely to prove the two accounts differ."""
+    def ro(method, path, body=None, host="paper"):
+        if method != "GET":
+            raise ap.GuardError("refused: this client is read only (existing account)")
+        return call(method, path, body, host)
+    return ro
+
+
 def new_env(env) -> dict:
     """Map the NEW secret names onto the names make_client reads. The existing account's names are never used to send anything."""
-    key, secret = _first_line(env.get("ALPACA_OPT_API_KEY", "")), _first_line(env.get("ALPACA_OPT_SECRET_KEY", ""))
+    key, secret = _first_line(env.get(NEW_KEY_NAME, "")), _first_line(env.get(NEW_SECRET_NAME, ""))
     if not key or not secret:
-        raise ap.GuardError("ALPACA_OPT_API_KEY and ALPACA_OPT_SECRET_KEY must be set (new secrets for the second paper account)")
+        raise ap.GuardError(f"{NEW_KEY_NAME} and {NEW_SECRET_NAME} must be set (the owner's secrets for the second paper account)")
     return {"ALPACA_API_KEY": key, "ALPACA_SECRET_KEY": secret, "ALPACA_PAPER_TRADE": "true"}
 
 
