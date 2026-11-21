@@ -28,7 +28,7 @@ Keys come from the owner's NEW secrets `OPT_LAB_ALPACA_KEY_ID` and `OPT_LAB_ALPA
 | Report: expectancy per dollar at risk with a bootstrap interval, drawdown, worst trade, trade count; win rate shown never ranks; with and without catalyst tags; versus control; `unranked, not evidence` until 30 trades and a Stage 1 result; scaled to an 800 USD account at 50 to 80 USD risk | `report.py` |
 
 ## State
-Specs, approvals and the Stage 1 file live in the private hub (`system/12-options-program/`). The ledger and checkpoints live on the hub's `options-ledger` branch. Open positions are recomputed from the ledger and reconciled with the broker each run; a mismatch (for example an account reset) stops new entries. Never reset the account without exporting a checkpoint first.
+Specs, approvals and the Stage 1 file live in the private hub (`system/13-options-program/`). The ledger and checkpoints live on the hub's `options-ledger` branch. Open positions are recomputed from the ledger and reconciled with the broker each run; a mismatch (for example an account reset) stops new entries. Never reset the account without exporting a checkpoint first.
 
 ## Known unknowns (flagged, fail-safe)
 - The sign convention of the net limit price for credit multi-leg orders on Alpaca paper is sent as negative for a credit; if the broker rejects it the order is simply not placed.
