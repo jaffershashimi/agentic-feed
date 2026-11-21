@@ -159,6 +159,15 @@ class ManageTests(unittest.TestCase):
         out = self.go(fake, datetime(2026, 11, 25, 15, 5, tzinfo=timezone.utc))
         self.assertEqual(out["closing"], 1)
 
+    def test_s042_halt_closes_the_spreads_too(self):
+        """Owner decision 2026-11-21: a halted S-042 also closes its spreads (and only its spreads)."""
+        halting = [{"id": f"h{i}", "client_order_id": f"s042v3-L{i:03d}-261105", "side": "buy", "symbol": f"L{i:03d}", "filled_qty": "1000", "filled_avg_price": "100",
+                    "filled_at": "2026-11-06T14:30:00Z", "legs": [{"side": "sell", "filled_qty": "1000", "filled_avg_price": "90", "type": "stop"}]} for i in range(2)]
+        fake = Fake(quotes={LONG: (1.0, 1.1), SHORT: (0.45, 0.5)}, positions=self.have(), closed=self.closed("261123") + halting)
+        out = self.go(fake, datetime(2026, 11, 24, 15, 5, tzinfo=timezone.utc))   # inside every other rule: would normally hold
+        self.assertEqual((out["halted"], out["closing"]), (True, 1))
+        self.assertEqual({b["side"] for b in fake.posted}, {"sell", "buy"})
+
     def test_does_not_touch_other_structures(self):
         other = [{"symbol": ao.occ("ZZZ", EXP, "C", 10), "qty": "1", "avg_entry_price": "1", "unrealized_pl": "0"}]
         closed = [{"client_order_id": "long-call-ZZZ-261101-ab12", "filled_qty": "1", "legs": [{"symbol": other[0]["symbol"], "filled_qty": "1"}]}]

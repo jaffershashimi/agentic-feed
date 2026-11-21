@@ -43,6 +43,8 @@ TAG = "s042v3"
 POSITION_CAP = 20            # owner decision 2026-11-17: was 10, to reach the 100-trade gate faster on the paper account
 NOTIONAL_USD = 3000.0        # owner decision 2026-11-17: was 1,000 USD per entry (paper account of about 100,000 USD)
 STOP_FRACTION = 0.90
+HALT_USD = -3000.0           # owner rule 2026-11-17: halt when the closed result is below this
+HALT_MIN_TRADES, HALT_MEAN_PCT = 30, -0.5   # ... or with 30 or more closed trades and a mean return below -0.5 percent
 HISTORY_DAYS = 430
 HOLD_DAYS = op.MAX_DAYS
 # Owner approved 2026-11-17: execution may use any session. Evidence (engine backtest, 350 sampled trades) favours about
@@ -331,6 +333,12 @@ def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetc
     st = broker_state(call)
     clock = call("GET", "/v2/clock")
     exits = plan_exits(st["held"], data, asof)
+    halt = halt_status(call)
+    if halt["reason"] == "CHECK_ERROR":
+        entries_allowed = False
+    if halt["halted"]:
+        entries_allowed = False
+        exits = [e if e["action"] == "EXIT" else {**e, "action": "EXIT", "reason": "S042_HALT"} for e in exits]
     leaving = {e["sym"] for e in exits if e["action"] == "EXIT"}
     busy = {p["symbol"] for p in st["raw_book"]} | {o.get("symbol") for o in st["open_orders"]}
     pending_entries = {o.get("symbol") for o in st["open_orders"] if (o.get("client_order_id") or "").startswith(TAG + "-") and o.get("side") == "buy"}
@@ -338,7 +346,9 @@ def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetc
     slots = max(0, POSITION_CAP - open_count)
     chosen, skipped = [], []
     for c in sig["candidates"]:
-        if c["sym"] in ca["actions"]:
+        if halt["halted"] or halt["reason"] == "CHECK_ERROR":
+            skipped.append({"sym": c["sym"], "why": "ENTRY_BLOCKED_BY_HALT" if halt["halted"] else "ENTRY_BLOCKED_BY_HALT_CHECK"})
+        elif c["sym"] in ca["actions"]:
             skipped.append({"sym": c["sym"], "why": "CORPORATE_ACTION_SOON"})
         elif c["sym"] in busy:
             skipped.append({"sym": c["sym"], "why": "ALREADY_HELD_OR_PENDING"})
@@ -351,7 +361,7 @@ def run(call, universe: list, now: datetime, state_dir: Path, submit: bool, fetc
             skipped.append({"sym": c["sym"], "why": "NO_FREE_SLOT"})
     market_open = bool(clock.get("is_open"))
     out = {"asof": sig["asof"], "stress": sig["stress"], "v2_signals": sig["v2_signals"], "v3_signals": len(sig["candidates"]), "slots": slots,
-           "market_open": market_open, "submit": bool(submit), "exits": [{k: e[k] for k in ("sym", "action", "reason") if k in e} for e in exits],
+           "market_open": market_open, "halted": halt["halted"], "halt": halt, "submit": bool(submit), "exits": [{k: e[k] for k in ("sym", "action", "reason") if k in e} for e in exits],
            "entries": [b for _, b in chosen], "skipped": skipped, "stale_symbols": len(sig["stale"]), "orders": [],
            "quarantined": sig["quarantined"], "corporate_actions_error": ca["error"],
            "est_cost_bps": {c["sym"]: c["est_cost_bps"] for c, _ in chosen}}
@@ -426,6 +436,22 @@ def closed_trades(call, tag: str = TAG, stop_fraction: float = STOP_FRACTION) ->
                        "entry_gap_bps": gap, "mode": "morning_limit" if e.get("type") == "limit" else "market_at_open",
                        "entry_date": (e.get("filled_at") or "")[:10], "exit_date": (ex.get("filled_at") or "")[:10]})
     return trades, entries
+
+
+def halt_status(call, tag: str = TAG) -> dict:
+    """The owner's S-042 halt rule, evaluated from the broker's own closed trades on every run (no state file, so it survives the runner being rebuilt).
+    Halted means: no new S-042 entries, every open S-042 position is exited (and its option spreads closed), nothing else is touched.
+    Owner decision 2026-11-21: the halt closes only this strategy, never the whole paper account."""
+    try:
+        trades, _ = closed_trades(call, tag)
+    except (KeyError, ValueError, TypeError):
+        # Cannot read the broker's closed orders: not halted (exits and stops must keep working) but no new entries until it can be read.
+        return {"halted": False, "reason": "CHECK_ERROR", "closed": None, "total_pnl": None, "mean_ret_pct": None}
+    n = len(trades)
+    total = round(sum(t["pnl"] for t in trades), 2)
+    mean = round(sum(t["ret_pct"] for t in trades) / n, 3) if n else None
+    reason = "HALT_USD" if total < HALT_USD else ("HALT_MEAN" if n >= HALT_MIN_TRADES and mean is not None and mean < HALT_MEAN_PCT else None)
+    return {"halted": reason is not None, "reason": reason, "closed": n, "total_pnl": total, "mean_ret_pct": mean}
 
 
 def report(call, tag: str = TAG, stop_fraction: float = STOP_FRACTION) -> dict:
