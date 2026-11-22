@@ -133,20 +133,21 @@ flowchart TB
 
 <sub>Static copy: [docs/diagrams/failure-loop.svg](docs/diagrams/failure-loop.svg)</sub>
 
-## Current status (paper)
+## Current status (paper, as of the 2026-11-20 close)
 
-Source: the Nov 22 paper review of the stock paper ledger, sessions 2026-11-02 to 2026-11-20 (15 sessions). Counts after fees. Paper results, not money.
+Sources: the Nov 22 paper review of the old Claude paper desk ledger, and the 2026-11-21 weekly report from the stock paper account's decision journal. Counts after fees. Paper results, never pooled, never money.
 
-| Measure | Value |
-|---|---|
-| Sessions on the record | 15 |
-| Closed paper trades (two arms, kept separate) | 34 |
-| Net after fees, both arms | -357 USD |
-| Profit factor | 0.07 |
-| Frozen-rule replay over the same sessions | 94 closed trades, mean -3.90 USD per trade, 95% interval -6.24 to -1.48 |
-| Go-live gates met | 1 of 5 (drawdown only) |
+| Lane | Since (sessions) | Closed trades | Result after fees |
+|---|---|---|---|
+| Old Claude paper desk, two arms kept separate | Nov 2 (15) | 34 | Net -357 USD, profit factor 0.07 |
+| Frozen-rule replay R2, same sessions | Nov 2 (15) | 94 | Mean -3.90 USD a trade, 95% interval -6.24 to -1.48 |
+| Stock paper account, S-042 | Nov 17 (4) | 9 | Mean -9.12% a trade, all 9 stopped out |
+| Stock paper account, S-048 B55M | Nov 19 (2) | 0 | Nothing closed yet |
+| Options paper, OPT-PAPER-1 | Nov 23 (0) | 0 | Starts Monday |
 
-**Plain reading: no edge so far.** The interval sits below zero before and after costs. The rules stay frozen and the test continues to 2026-12-18, when a pre-registered stop line decides whether the entry rules are retired. The options paper program starts 2026-11-23 with 0 trades on record.
+Go-live gates met: 1 of 5 (drawdown only).
+
+**Plain reading: no edge so far.** The replay interval sits below zero before and after costs, and none of the nine S-042 paper trades has won. Nine trades prove nothing either way. The old desk's rules stay frozen to 2026-12-18, when a pre-registered stop line decides whether its entry rules are retired.
 
 ## Repository map
 
@@ -187,7 +188,7 @@ python3 -m feed_pipeline.build --out /tmp/feed && cat /tmp/feed/health.json
 
 ## Honest limits
 
-- Small samples prove nothing. 34 paper trades is not evidence of anything except that the current rules have not worked.
+- Small samples prove nothing. 34 old-desk trades and 9 S-042 trades only show that nothing has worked yet.
 - Paper fills are not real fills. Paper accounts can be kinder than a real market on price and size.
 - Paper, replay and backtest results are never pooled; each is reported on its own.
 - The feed's `regime` and `macro` labels are simple heuristics, not validated signals.
