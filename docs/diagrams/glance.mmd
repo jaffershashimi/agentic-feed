@@ -1,0 +1,7 @@
+%%{init: {"theme":"base","fontFamily":"Inter, Helvetica, Arial, sans-serif","themeVariables":{"fontFamily":"Inter, Helvetica, Arial, sans-serif","fontSize":"15px","primaryColor":"#F1F5F9","primaryTextColor":"#0F172A","primaryBorderColor":"#64748B","lineColor":"#64748B","edgeLabelBackground":"#F1F5F9","tertiaryColor":"#F1F5F9"},"htmlLabels":false,"flowchart":{"curve":"basis","nodeSpacing":20,"rankSpacing":26,"padding":14,"htmlLabels":false}}}%%
+flowchart LR
+  A("Market<br/>data"):::base --> B("Frozen<br/>rules"):::base --> C("Paper<br/>accounts"):::key --> D("Checks and<br/>audit"):::base --> E("Owner<br/>decides"):::ink
+  classDef base fill:#F1F5F9,stroke:#64748B,stroke-width:1.5px,color:#0F172A;
+  classDef key fill:#2563EB,stroke:#2563EB,stroke-width:1.5px,color:#FFFFFF;
+  classDef warn fill:#F1F5F9,stroke:#B45309,stroke-width:2.5px,color:#0F172A;
+  classDef ink fill:#0F172A,stroke:#64748B,stroke-width:1.5px,color:#FFFFFF;
