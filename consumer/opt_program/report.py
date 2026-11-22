@@ -1,6 +1,8 @@
 """Ranking and transfer report. Ranking metric: net expectancy per dollar at risk after costs, with a bootstrap interval, plus max drawdown, worst trade and trade count.
 Win rate is shown and never ranks. Every strategy is shown with and without catalyst-tagged trades (none dropped) and against its random-entry control.
-Every result is labelled 'unranked, not evidence' until the strategy has 30 closed trades and a Stage 1 result."""
+Owner rule of 2026-11-22: paper checks implementation and costs; ranking comes from real-quote history with Holm correction and deflated Sharpe (the Stage 1 file);
+paper trades confirm. A strategy without a passing Stage 1 result is labelled 'unranked, not evidence' however many paper trades it has. 30 closed paper trades can
+kill a strategy under its kill criteria but never rank it."""
 from __future__ import annotations
 
 import random
@@ -64,6 +66,16 @@ def transfer(items) -> dict:
             "flag": None if fits >= 0.5 else f"CANNOT_TRADE_AT_800 (median smallest version risks {med:.0f} USD, above {hi:.0f})"}
 
 
+def trades_needed(r, t: float = 2.0):
+    """Trades for a t-statistic of t at the observed mean and spread per trade (mean / sd x square root of n). None when the mean is not positive or n < 5."""
+    if len(r) < 5:
+        return None
+    m, sd = statistics.fmean(r), statistics.stdev(r)
+    if m <= 0 or sd == 0:
+        return None
+    return int(round((t * sd / m) ** 2))
+
+
 def strategy_report(spec_id: str, state: dict, stage1: dict | None = None) -> dict:
     real = [c for c in state["closed"] if c["entry"]["spec_id"] == spec_id]
     ctrl = [c for c in state["closed_control"] if c["entry"]["spec_id"] == spec_id]
@@ -72,19 +84,27 @@ def strategy_report(spec_id: str, state: dict, stage1: dict | None = None) -> di
     rr, cr = returns(real), returns(ctrl)
     d = diff_ci(rr, cr)
     s1 = (stage1 or {}).get(spec_id, {})
-    enough = len(real) >= P.MIN_TRADES_FOR_RANKING and bool(s1.get("holm_pass"))
+    history_pass = bool(s1.get("holm_pass")) and bool(s1.get("dsr_pass"))
     beats = bool(d and d[0] > 0)
-    label = P.UNRANKED_LABEL if not enough else ("ranked" if beats else "not ranked: does not beat its random-entry control")
-    return {"spec_id": spec_id, "label": label, "all": block(real), "with_catalyst_tag": block(tagged), "without_catalyst_tag": block(clean), "control": block(ctrl),
+    contradicts = bool(d and d[1] < 0)       # paper interval entirely below its control
+    if not history_pass:
+        label = P.UNRANKED_LABEL
+    elif contradicts:
+        label = "not ranked: paper contradicts the history result (below its random-entry control)"
+    elif len(real) >= P.MIN_TRADES_FOR_RANKING and beats:
+        label = "ranked: history passed, paper confirms"
+    else:
+        label = "ranked on history, paper confirmation pending"
+    return {"spec_id": spec_id, "label": label, "trades_needed_t2": trades_needed(rr), "all": block(real), "with_catalyst_tag": block(tagged), "without_catalyst_tag": block(clean), "control": block(ctrl),
             "difference_vs_control_per_dollar": None if not d else {"interval": d, "beats_control": beats}, "transfer": transfer(real), "trades_open_now": None}
 
 
-def build(state: dict, stage1: dict | None = None) -> dict:
+def build(state: dict, stage1: dict | None = None, account_label: str | None = None) -> dict:
     ids = sorted({c["entry"]["spec_id"] for c in state["closed"]} | set(state["specs"]) | {r["spec_id"] for r in state["open"].values()})
     rep = [strategy_report(i, state, stage1) for i in ids]
     for r in rep:
         r["trades_open_now"] = sum(1 for x in state["open"].values() if x["spec_id"] == r["spec_id"])
-    return {"account": P.ACCOUNT_LABEL, "never_pooled_with_other_accounts": True, "strategies": rep, "no_fill_count": state["no_fill"],
+    return {"account": account_label or P.ACCOUNT_LABEL, "never_pooled_with_other_accounts": True, "strategies": rep, "no_fill_count": state["no_fill"],
             "halts": {f"{k[0]}:{k[1] or 'all'}": v for k, v in state["halts"].items() if v}}
 
 
