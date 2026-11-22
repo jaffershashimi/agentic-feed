@@ -1,5 +1,5 @@
 # Agentic feed for session 2026-11-20
-Generated 2026-11-21T18:08:30+00:00. Core data healthy: True. Stale: none. Failed: none.
+Generated 2026-11-22T18:37:41+00:00. Core data healthy: True. Stale: none. Failed: none.
 
 - Regime (v0, unvalidated): **stress** (vix>=25)
 - VIX 35.89, VIX9D 40.72, VIX3M 30.94, VVIX 138.03, SKEW 138.84
