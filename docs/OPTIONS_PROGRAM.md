@@ -52,4 +52,6 @@ Before any order on RESEARCH-LAB the account check must say: ACTIVE, multi-leg a
 
 Spec schema is strict: unknown fields, and drafts that name an engine feature not built, are refused rather than partly used. New: `max_premium_usd`, `directional_group`, `breakout_days_min` (10, 20 or 55), unmanaged exits (`managed: false`, no target and no stop), and long-premium debit spreads may close 1 day before expiry (credit structures still close at 8 or more days).
 
-Ranking (owner rule 2026-11-22): paper checks implementation and costs; ranking comes from real-quote history with Holm correction and deflated Sharpe (`stage1.json` needs `holm_pass` and `dsr_pass`); paper confirms. The report shows `trades_needed_t2` per strategy.
+Ranking (owner rule 2026-11-22, final): paper checks implementation and costs only; ranking comes from real-quote history with Holm correction and deflated Sharpe (`stage1.json` needs `holm_pass` and `dsr_pass`); no trade-count rule; paper never changes a rank. The report shows `trades_needed_t2` per strategy.
+
+Order ids are fixed per spec, underlying and day (`O-121-IWM-261124-r`, exits prefixed `x`). They are the broker's client order id, which the broker refuses to accept twice, so a retried or re-run workflow cannot double-submit.
