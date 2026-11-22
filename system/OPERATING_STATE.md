@@ -21,7 +21,7 @@ Updated 2026-11-13. This is the one public page a scheduled run can fetch to kno
 
 | Time | Run | Output |
 |---|---|---|
-| 6:52 | Claude Paper Desk Open | entries, skips, SPY snapshot |
+| 6:52 | Claude Paper Desk Open | entries, skips |
 | 7:47, 9:47, 11:47 | Claude hourly check | exits, pending triggers |
 | 8:47 | Claude Manage | manage plus one scan |
 | 10:47 | Claude Midday | manage plus one scan, last entry 12:45 |
