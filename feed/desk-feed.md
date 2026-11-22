@@ -1,5 +1,5 @@
 # Agentic feed for session 2026-11-20
-Generated 2026-11-22T22:50:47+00:00. Core data healthy: True. Stale: none. Failed: BAMLH0A0HYM2, DGS10, DGS2, DTWEXBGS, NFCI, T10Y2Y.
+Generated 2026-11-22T22:54:28+00:00. Core data healthy: True. Stale: none. Failed: BAMLH0A0HYM2, DGS10, DGS2, DTWEXBGS, NFCI, T10Y2Y.
 
 - Regime (v0, unvalidated): **stress** (vix>=25)
 - VIX 35.89, VIX9D 40.72, VIX3M 30.94, VVIX 138.03, SKEW 138.84
