@@ -42,3 +42,40 @@ UNRANKED_LABEL = "unranked, not evidence"
 
 ENTRY_WINDOW_ET = ((10, 25), (11, 45))  # entries only between 10:25 and 11:45 ET (after the 10:20 ET engine check); early-close days end at 11:30
 CONTROL_DAILY_PROB = 0.20               # shadow random-entry control: chance per eligible spec and underlying and day
+
+
+# ---------------------------------------------------------------- accounts (owner decisions 2026-11-22)
+# Each paper account has its own limits, ledger, specs and controls; results are never pooled. OPT-PAPER-1 keeps every number above exactly as built (frozen).
+# RESEARCH-LAB (100,000 USD paper) uses the same PERCENTAGES of the account as OPT-PAPER-1 (25,000 USD): open risk 40%, strategy halt 6%, account halt 16%;
+# plus the correlated-group cap (15%) and monthly halt and review lines (6% and 10%) the owner approved with batch 2. Per-trade max loss stays 1,000 (owner);
+# directional arms risk at most 300 of premium each, inside a 1,500 directional sub-cap (owner). Raising any percentage needs the owner first.
+from dataclasses import dataclass, field  # noqa: E402
+
+CORRELATED_GROUP = ("SPY", "QQQ", "IWM", "XSP", "SPX")   # broad US equity: counted as one group where a group cap applies
+
+
+@dataclass(frozen=True)
+class Account:
+    label: str
+    key_name: str
+    secret_name: str
+    open_risk_cap_usd: float
+    strategy_halt_usd: float
+    account_halt_usd: float
+    start: date
+    group_cap_usd: float | None = None
+    group_members: tuple = field(default_factory=tuple)
+    monthly_halt_usd: float | None = None      # negative: month-to-date result at or below this stops new entries until the next month
+    monthly_review_usd: float | None = None    # negative: reported for review, stops nothing
+    directional_cap_usd: float | None = None
+    expected_equity_usd: float | None = None   # the account check confirms the account is about this size (within 10 percent)
+
+
+ACCOUNTS = {
+    "OPT-PAPER-1": Account(label=ACCOUNT_LABEL, key_name="OPT_LAB_ALPACA_KEY_ID", secret_name="OPT_LAB_ALPACA_SECRET_KEY",
+                           open_risk_cap_usd=OPEN_RISK_CAP_USD, strategy_halt_usd=STRATEGY_HALT_USD, account_halt_usd=ACCOUNT_HALT_USD, start=PROGRAM_START),
+    "RESEARCH-LAB": Account(label="RESEARCH-LAB", key_name="OPT_LAB2_ALPACA_KEY_ID", secret_name="OPT_LAB2_ALPACA_SECRET_KEY",
+                            open_risk_cap_usd=40000.0, strategy_halt_usd=-6000.0, account_halt_usd=-16000.0, start=date(2026, 11, 24),
+                            group_cap_usd=15000.0, group_members=CORRELATED_GROUP, monthly_halt_usd=-6000.0, monthly_review_usd=-10000.0,
+                            directional_cap_usd=1500.0, expected_equity_usd=100000.0),
+}

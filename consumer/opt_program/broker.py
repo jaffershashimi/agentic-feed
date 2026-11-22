@@ -22,11 +22,11 @@ def read_only(call):
     return ro
 
 
-def new_env(env) -> dict:
-    """Map the NEW secret names onto the names make_client reads. The existing account's names are never used to send anything."""
-    key, secret = _first_line(env.get(NEW_KEY_NAME, "")), _first_line(env.get(NEW_SECRET_NAME, ""))
+def new_env(env, key_name: str = NEW_KEY_NAME, secret_name: str = NEW_SECRET_NAME) -> dict:
+    """Map an options account's secret names onto the names make_client reads. The stock desk's names are never used to send anything."""
+    key, secret = _first_line(env.get(key_name, "")), _first_line(env.get(secret_name, ""))
     if not key or not secret:
-        raise ap.GuardError(f"{NEW_KEY_NAME} and {NEW_SECRET_NAME} must be set (the owner's secrets for the second paper account)")
+        raise ap.GuardError(f"{key_name} and {secret_name} must be set (the owner's secrets for this paper account)")
     return {"ALPACA_API_KEY": key, "ALPACA_SECRET_KEY": secret, "ALPACA_PAPER_TRADE": "true"}
 
 
@@ -37,7 +37,7 @@ def _first_line(v: str) -> str:
     return ""
 
 
-def account_check(call_new, call_old=None) -> dict:
+def account_check(call_new, call_old=None, others=None, expected_equity=None) -> dict:
     """Booleans and levels only: never a balance. multi_leg_ok is true when the effective options level is 3 or more."""
     acct = call_new("GET", "/v2/account")
     approved = acct.get("options_approved_level")
@@ -47,6 +47,15 @@ def account_check(call_new, call_old=None) -> dict:
     if call_old is not None:
         old = call_old("GET", "/v2/account")
         out["distinct_from_existing_account"] = bool(acct.get("id") and old.get("id") and acct["id"] != old["id"] and acct.get("account_number") != old.get("account_number"))
+    for label, call_other in (others or {}).items():
+        o = call_other("GET", "/v2/account")
+        out[f"distinct_from_{label}"] = bool(acct.get("id") and o.get("id") and acct["id"] != o["id"] and acct.get("account_number") != o.get("account_number"))
+    if expected_equity:
+        # yes or no only, never the number: the account is within 10 percent of its expected size (equity), and buying power is at least that size
+        eq = float(acct.get("equity") or 0)
+        bp = float(acct.get("buying_power") or 0)
+        out["size_about_expected"] = abs(eq / expected_equity - 1) <= 0.10
+        out["buying_power_at_least_expected"] = bp >= 0.9 * expected_equity
     return out
 
 

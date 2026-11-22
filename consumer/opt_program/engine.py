@@ -67,10 +67,11 @@ def mark(row: dict, quotes: dict):
 def decide_exit(row: dict, mk: dict, spec: dict, day: date):
     ex, loss, profit = spec["exit"], row["max_loss_usd"], row.get("max_profit_usd")
     basis = profit if profit else loss
-    if mk["pnl_model"] >= ex["profit_target_pct"] * basis:
-        return "PROFIT_TARGET"
-    if mk["pnl_model"] <= -ex["loss_stop_pct"] * loss:
-        return "LOSS_STOP"
+    if ex.get("managed", True) is not False:   # an unmanaged twin is held to its time exit: no target, no stop
+        if mk["pnl_model"] >= ex["profit_target_pct"] * basis:
+            return "PROFIT_TARGET"
+        if mk["pnl_model"] <= -ex["loss_stop_pct"] * loss:
+            return "LOSS_STOP"
     first_exp = min(date.fromisoformat(d["expiry"]) for d in row["legs"])
     if (first_exp - day).days <= ex["time_exit_dte"]:
         return "TIME_EXIT_DTE"
@@ -82,8 +83,9 @@ def decide_exit(row: dict, mk: dict, spec: dict, day: date):
 
 
 class Engine:
-    def __init__(self, market, broker, ledger: Ledger, specs: dict, approvals: dict, now: datetime, submit: bool, ignore_window: bool = False):
+    def __init__(self, market, broker, ledger: Ledger, specs: dict, approvals: dict, now: datetime, submit: bool, ignore_window: bool = False, account=None):
         self.m, self.b, self.led, self.now, self.submit = market, broker, ledger, now, submit
+        self.acct = account or P.ACCOUNTS["OPT-PAPER-1"]
         self.day = now.astimezone(ET).date()
         self.ignore_window = ignore_window
         self.approved = approved_specs(specs, approvals)
@@ -139,16 +141,16 @@ class Engine:
             return
         e = plan["econ"]
         if not control:
-            risk_now = sum(r["max_loss_usd"] for r in state["open"].values())
-            if risk_now + e["max_loss_usd"] > P.OPEN_RISK_CAP_USD:
-                self.skip("OPEN_RISK_CAP")
+            why = self.cap_check(spec, root, e["max_loss_usd"], state)
+            if why:
+                self.skip(why)
                 return
         sid = f"{spec['id']}-{root}-{self.day.strftime('%y%m%d')}-{secrets.token_hex(2)}"
         rec = {"id": sid, "spec_id": spec["id"], "spec_sha256": sha(spec), "underlying": root, "day": self.day.isoformat(), "kind": plan["kind"], "qty": 1,
                "legs": [leg_dict(lg) for lg in plan["legs"]], "entry_net_model": round(plan["net_model"], 4), "entry_net_natural": round(plan["net_natural"], 4),
                "entry_net_mid": round(plan["net_mid"], 4), "max_loss_usd": e["max_loss_usd"], "max_profit_usd": e["max_profit_usd"], "width": e["width"],
                "fees_round_trip_usd": e["fees_round_trip_usd"], "smallest_version_risk_usd": plan["smallest"], "used_fallback_cap": plan["info"]["used_fallback_cap"],
-               "catalyst_tagged": plan["tags"]["catalyst_tagged"], "catalyst_events": plan["tags"]["events"], "account": P.ACCOUNT_LABEL}
+               "catalyst_tagged": plan["tags"]["catalyst_tagged"], "catalyst_events": plan["tags"]["events"], "account": self.acct.label}
         if control:
             if self.submit:
                 self.write("CONTROL_ENTRY", **rec)
@@ -172,6 +174,22 @@ class Engine:
         row = self.write("ENTRY", **rec)
         state["open"][sid] = row
         self.c["opened"] += 1
+
+    def cap_check(self, spec: dict, root: str, new_risk: float, state: dict) -> str:
+        """Every cap that applies to this account and spec, in one place. Returns a skip reason or an empty string. Controls are outside the caps."""
+        a, opened = self.acct, list(state["open"].values())
+        if "max_premium_usd" in spec and new_risk > spec["max_premium_usd"] + 1e-9:
+            return "OVER_MAX_PREMIUM"
+        if sum(r["max_loss_usd"] for r in opened) + new_risk > a.open_risk_cap_usd:
+            return "OPEN_RISK_CAP"
+        if a.group_cap_usd is not None and root in a.group_members:
+            if sum(r["max_loss_usd"] for r in opened if r["underlying"] in a.group_members) + new_risk > a.group_cap_usd:
+                return "GROUP_CAP"
+        if a.directional_cap_usd is not None and spec.get("directional_group"):
+            dir_ids = {sid for sid, sp in self.specs_all.items() if sp.get("directional_group")}
+            if sum(r["max_loss_usd"] for r in opened if r["spec_id"] in dir_ids) + new_risk > a.directional_cap_usd:
+                return "DIRECTIONAL_CAP"
+        return ""
 
     # ---------- exits
     def manage(self, state: dict, quotes_all: dict):
@@ -202,7 +220,7 @@ class Engine:
                 exit_net = worse_of(exit_net, broker_net)
             pnl = S.pnl_usd(row["entry_net_model"], exit_net, row["qty"], mk["legs"])
             f = dict(id=sid, spec_id=row["spec_id"], reason=reason, exit_net_model=round(exit_net, 4), exit_net_natural=mk["close_net_natural"], broker_net=broker_net,
-                     pnl_model_usd=pnl, pnl_natural_usd=mk["pnl_natural"], account=P.ACCOUNT_LABEL)
+                     pnl_model_usd=pnl, pnl_natural_usd=mk["pnl_natural"], account=self.acct.label, day=self.day.isoformat())
             self.traded_today.add((row["spec_id"], row["underlying"]))
             if control:
                 self.write("CONTROL_EXIT", **f)
@@ -225,14 +243,29 @@ class Engine:
                 res[row["spec_id"]] = res.get(row["spec_id"], 0.0) + mk["pnl_model"]
         return res
 
-    def evaluate_halts(self, state: dict, results: dict):
+    def month_result(self, state: dict, quotes_all: dict) -> float:
+        """Month to date: closed results with an exit this month plus the open marks."""
+        month = self.day.isoformat()[:7]
+        closed = sum(c["exit"]["pnl_model_usd"] for c in state["closed"] if str(c["exit"].get("day") or c["exit"].get("ts", ""))[:7] == month)
+        opened = sum((mark(r, quotes_all) or {}).get("pnl_model", 0.0) for r in state["open"].values())
+        return closed + opened
+
+    def evaluate_halts(self, state: dict, results: dict, quotes_all: dict | None = None):
+        if self.acct.monthly_halt_usd is not None:
+            month = self.day.isoformat()[:7]
+            mr = self.month_result(state, quotes_all or {})
+            self.c["month_review_line_reached"] = bool(self.acct.monthly_review_usd is not None and mr <= self.acct.monthly_review_usd)
+            if mr <= self.acct.monthly_halt_usd and not state["halts"].get(("month", month)):
+                self.write("HALT", scope="month", spec_id=month, result_usd=round(mr, 2))
+                state["halts"][("month", month)] = True
+                self.c["halts_new"] += 1
         total = sum(results.values())
-        if total <= P.ACCOUNT_HALT_USD and not state["halts"].get(("account", None)):
+        if total <= self.acct.account_halt_usd and not state["halts"].get(("account", None)):
             self.write("HALT", scope="account", result_usd=round(total, 2))
             state["halts"][("account", None)] = True
             self.c["halts_new"] += 1
         for sid, v in results.items():
-            if v <= P.STRATEGY_HALT_USD and not state["halts"].get(("strategy", sid)):
+            if v <= self.acct.strategy_halt_usd and not state["halts"].get(("strategy", sid)):
                 self.write("HALT", scope="strategy", spec_id=sid, result_usd=round(v, 2))
                 state["halts"][("strategy", sid)] = True
                 self.c["halts_new"] += 1
@@ -250,8 +283,8 @@ class Engine:
         if not cal.is_session(self.day):
             c["note"] = "not a market session"
             return c
-        if self.day < P.PROGRAM_START:
-            c["note"] = f"program starts {P.PROGRAM_START.isoformat()}"
+        if self.day < self.acct.start:
+            c["note"] = f"program starts {self.acct.start.isoformat()}"
             return c
         self.led.guard()
         rows = self.led.rows()
@@ -275,9 +308,10 @@ class Engine:
         quotes_all = self.m.quotes(syms) if syms else {}
         results = self.results(state, quotes_all)
         if self.submit:
-            self.evaluate_halts(state, results)
+            self.evaluate_halts(state, results, quotes_all)
         self.manage(state, quotes_all)
-        entries_ok = (in_entry_window(self.now) or self.ignore_window) and reconciled and not state["halts"].get(("account", None))
+        entries_ok = ((in_entry_window(self.now) or self.ignore_window) and reconciled and not state["halts"].get(("account", None))
+                      and not state["halts"].get(("month", self.day.isoformat()[:7])))
         if not reconciled:
             c["note"] = "broker positions differ from the ledger: no new entries until the owner looks (a reset or a manual trade)"
         if entries_ok:

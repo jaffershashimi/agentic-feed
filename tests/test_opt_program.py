@@ -381,13 +381,26 @@ class ReportTests(unittest.TestCase):
     def trade(self, spec_id, pnl, tagged=False, small=60.0, loss=400.0):
         return {"entry": {"spec_id": spec_id, "max_loss_usd": loss, "catalyst_tagged": tagged, "smallest_version_risk_usd": small}, "exit": {"pnl_model_usd": pnl, "pnl_natural_usd": pnl - 5}}
 
-    def test_unranked_label_until_30_trades_and_stage1(self):
+    def test_ranking_comes_from_history_and_paper_confirms(self):
         st = {"specs": {"O-1": {}}, "closed": [self.trade("O-1", 50 if i % 2 else -20, tagged=i % 3 == 0) for i in range(40)], "closed_control": [self.trade("O-1", -10) for _ in range(40)],
               "open": {}, "open_control": {}, "halts": {}, "no_fill": 0}
-        rep = R.build(st, {})
-        self.assertEqual(rep["strategies"][0]["label"], P.UNRANKED_LABEL)
-        rep2 = R.build(st, {"O-1": {"holm_pass": True}})
-        self.assertNotEqual(rep2["strategies"][0]["label"], P.UNRANKED_LABEL)
+        self.assertEqual(R.build(st, {})["strategies"][0]["label"], P.UNRANKED_LABEL)                       # 40 paper trades alone never rank
+        self.assertEqual(R.build(st, {"O-1": {"holm_pass": True}})["strategies"][0]["label"], P.UNRANKED_LABEL)  # Holm without deflated Sharpe: still unranked
+        self.assertEqual(R.build(st, {"O-1": {"holm_pass": True, "dsr_pass": True}})["strategies"][0]["label"], "ranked: history passed, paper confirms")
+        few = dict(st, closed=st["closed"][:6], closed_control=st["closed_control"][:6])
+        self.assertEqual(R.build(few, {"O-1": {"holm_pass": True, "dsr_pass": True}})["strategies"][0]["label"], "ranked on history, paper confirmation pending")
+        bad = dict(st, closed=[self.trade("O-1", -40) for _ in range(10)], closed_control=[self.trade("O-1", 10) for _ in range(10)])
+        self.assertTrue(R.build(bad, {"O-1": {"holm_pass": True, "dsr_pass": True}})["strategies"][0]["label"].startswith("not ranked: paper contradicts"))
+
+    def test_trades_needed(self):
+        self.assertIsNone(R.trades_needed([0.1] * 3))
+        self.assertIsNone(R.trades_needed([-0.1, -0.2, 0.0, -0.1, -0.3]))
+        self.assertEqual(R.trades_needed([0.2, 0.0, 0.2, 0.0, 0.2, 0.0]), 5)   # mean 0.1, sd 0.11: (2 x 0.11 / 0.1) squared
+
+    def test_report_names_its_account(self):
+        st = {"specs": {}, "closed": [], "closed_control": [], "open": {}, "open_control": {}, "halts": {}, "no_fill": 0}
+        self.assertEqual(R.build(st, None, "RESEARCH-LAB")["account"], "RESEARCH-LAB")
+        self.assertEqual(R.build(st)["account"], P.ACCOUNT_LABEL)
 
     def test_both_catalyst_groups_shown_and_win_rate_does_not_rank(self):
         st = {"specs": {}, "closed": [self.trade("O-1", 10, tagged=True) for _ in range(6)] + [self.trade("O-1", -30) for _ in range(6)], "closed_control": [], "open": {}, "open_control": {}, "halts": {}, "no_fill": 0}
@@ -508,3 +521,129 @@ class ControlAndWindowTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class AddendumTests(unittest.TestCase):
+    """Owner decisions 2026-11-22: strict spec schema, unmanaged twins, long-premium spread exits, breakout signal, premium cap, per-account caps and halts."""
+
+    def base(self, **kw):
+        sp = {"id": "O-900", "name": "t", "family": "long-option", "structure": "long-call", "underlying_type": "etf", "underlyings": ["IWM"], "dte_min": 5, "dte_max": 9,
+              "dte_target": 7, "legs": {"long_delta": 0.4}, "entry": {"always": True},
+              "exit": {"profit_target_pct": 1.0, "loss_stop_pct": 0.5, "time_exit_dte": 1, "max_hold_sessions": 4}}
+        sp.update(kw)
+        return sp
+
+    def test_unknown_field_or_feature_is_refused(self):
+        with self.assertRaises(SP.SpecError):
+            SP.validate(self.base(new_idea=True))
+        with self.assertRaises(SP.SpecError):
+            SP.validate(self.base(requires_engine=["teleport"]))
+        SP.validate(self.base(requires_engine=["short_dte_expiries", "max_premium_usd"], max_premium_usd=300, directional_group=True, batch=2))
+
+    def test_unmanaged_twin(self):
+        tw = self.base(structure="credit-vertical-put", family="credit-spread", legs={"short_delta": 0.3, "width": 5}, dte_min=38, dte_max=52, dte_target=45,
+                       exit={"profit_target_pct": None, "loss_stop_pct": None, "time_exit_dte": 21, "max_hold_sessions": 25, "managed": False})
+        SP.validate(tw)
+        bad = dict(tw, exit=dict(tw["exit"], profit_target_pct=0.5))
+        with self.assertRaises(SP.SpecError):
+            SP.validate(bad)
+        row = {"max_loss_usd": 400.0, "max_profit_usd": 100.0, "legs": [{"expiry": "2027-01-08"}], "day": "2026-11-23", "kind": "credit-vertical-put"}
+        self.assertIsNone(E.decide_exit(row, {"pnl_model": 99.0}, tw, date(2026, 11, 24)))       # a managed spec would take profit here
+        self.assertIsNone(E.decide_exit(row, {"pnl_model": -390.0}, tw, date(2026, 11, 24)))     # and would stop here
+        self.assertEqual(E.decide_exit(row, {"pnl_model": 0.0}, tw, date(2026, 12, 18)), "TIME_EXIT_DTE")
+
+    def test_debit_spread_may_close_one_day_before_expiry_but_credit_may_not(self):
+        SP.validate(self.base(structure="debit-vertical-call", family="debit-spread", legs={"long_delta": 0.5, "width": 3}))
+        with self.assertRaises(SP.SpecError):
+            SP.validate(self.base(structure="credit-vertical-put", family="credit-spread", legs={"short_delta": 0.3, "width": 5}))
+        with self.assertRaises(SP.SpecError):
+            SP.validate(self.base(exit={"profit_target_pct": 1.0, "loss_stop_pct": 0.5, "time_exit_dte": 0, "max_hold_sessions": 4}))
+
+    def test_breakout_signal(self):
+        SP.validate(self.base(entry={"conditions": {"breakout_days_min": 20, "above_sma50": True}}))
+        with self.assertRaises(SP.SpecError):
+            SP.validate(self.base(entry={"conditions": {"breakout_days_min": 7}}))
+        closes = [100.0] * 30 + [101.0]
+        sig = M.signals(closes)
+        self.assertTrue(sig["breakout20"])
+        self.assertEqual(M.conditions_met({"breakout_days_min": 20}, sig), (True, ""))
+        self.assertEqual(M.conditions_met({"breakout_days_min": 20}, M.signals([100.0] * 31)), (False, "COND_breakout_days_min"))
+        self.assertEqual(M.conditions_met({"breakout_days_min": 55}, sig), (False, "NO_SIGNAL_DATA"))
+
+    def test_account_two_is_unchanged_and_research_lab_is_scaled(self):
+        a2, a3 = P.ACCOUNTS["OPT-PAPER-1"], P.ACCOUNTS["RESEARCH-LAB"]
+        self.assertEqual((a2.open_risk_cap_usd, a2.strategy_halt_usd, a2.account_halt_usd, a2.group_cap_usd, a2.monthly_halt_usd, a2.directional_cap_usd),
+                         (10000.0, -1500.0, -4000.0, None, None, None))
+        self.assertEqual((a2.key_name, a2.secret_name), (B.NEW_KEY_NAME, B.NEW_SECRET_NAME))
+        for name, frac in (("open_risk_cap_usd", 0.40), ("strategy_halt_usd", -0.06), ("account_halt_usd", -0.16), ("group_cap_usd", 0.15),
+                           ("monthly_halt_usd", -0.06), ("monthly_review_usd", -0.10)):
+            self.assertAlmostEqual(getattr(a3, name), frac * 100000.0, msg=name)
+        self.assertEqual(a3.directional_cap_usd, 1500.0)
+        self.assertNotEqual(a3.key_name, a2.key_name)
+
+    def engine(self, account, specs):
+        d = tempfile.mkdtemp()
+        return E.Engine(FakeMarket(), FakeBroker(), L.Ledger(d), specs, {}, NOW, submit=False, account=account)
+
+    def test_caps(self):
+        a3 = P.ACCOUNTS["RESEARCH-LAB"]
+        dspec = self.base(directional_group=True, max_premium_usd=300)
+        eng = self.engine(a3, {"O-900": dspec, "O-901": self.base(id="O-901")})
+        st = {"open": {}}
+        self.assertEqual(eng.cap_check(dspec, "IWM", 301.0, st), "OVER_MAX_PREMIUM")
+        self.assertEqual(eng.cap_check(dspec, "IWM", 300.0, st), "")
+        st = {"open": {f"x{i}": {"max_loss_usd": 300.0, "underlying": "IWM", "spec_id": "O-900"} for i in range(5)}}
+        self.assertEqual(eng.cap_check(dspec, "IWM", 100.0, st), "DIRECTIONAL_CAP")
+        self.assertEqual(eng.cap_check(self.base(id="O-901"), "IWM", 900.0, st), "")
+        st = {"open": {f"y{i}": {"max_loss_usd": 1000.0, "underlying": "SPY", "spec_id": "O-901"} for i in range(15)}}
+        self.assertEqual(eng.cap_check(self.base(id="O-901"), "QQQ", 500.0, st), "GROUP_CAP")
+        self.assertEqual(eng.cap_check(self.base(id="O-901"), "GLD", 500.0, st), "")
+        a2eng = self.engine(None, {"O-901": self.base(id="O-901")})
+        st = {"open": {f"z{i}": {"max_loss_usd": 1000.0, "underlying": "SPY", "spec_id": "O-901"} for i in range(9)}}
+        self.assertEqual(a2eng.cap_check(self.base(id="O-901"), "SPY", 1000.0, st), "")          # account 2 has no group cap: frozen as built
+        self.assertEqual(a2eng.cap_check(self.base(id="O-901"), "SPY", 1000.01, st), "OPEN_RISK_CAP")
+
+    def test_monthly_halt_only_where_configured(self):
+        a3 = P.ACCOUNTS["RESEARCH-LAB"]
+        state = {"closed": [{"entry": {"spec_id": "O-901"}, "exit": {"pnl_model_usd": -6000.0, "day": "2026-11-23"}}], "open": {}, "halts": {}}
+        eng = self.engine(a3, {})
+        eng.evaluate_halts(state, {"O-901": -6000.0}, {})
+        self.assertTrue(state["halts"].get(("month", "2026-11")))
+        self.assertTrue(state["halts"].get(("strategy", "O-901")))
+        state2 = {"closed": state["closed"], "open": {}, "halts": {}}
+        self.engine(None, {}).evaluate_halts(state2, {"O-901": -1000.0}, {})
+        self.assertFalse(state2["halts"])
+
+
+class ResearchLabCliTests(unittest.TestCase):
+    """The RESEARCH-LAB account check: ACTIVE, about 100,000, level 3, and a different account from both other desks. Yes or no only, never a number."""
+
+    def acct(self, ident, equity=100000.0, bp=200000.0, status="ACTIVE", level=3):
+        return lambda m, p, b=None, host="paper": {"id": ident, "account_number": "N" + ident, "status": status, "options_approved_level": level,
+                                                    "options_trading_level": level, "options_buying_power": "1", "equity": str(equity), **dict(buying_power=str(bp))}
+
+    def run_main(self, new, others, submit=True):
+        from consumer.opt_program import __main__ as CLI
+        lines = []
+        d = tempfile.mkdtemp()
+        argv = ["run", "--account", "RESEARCH-LAB", "--ledger", d, "--specs", d, "--approvals", d + "/none.json"] + (["--submit"] if submit else [])
+        rc = CLI.main(argv, env={}, call_new=new, call_old=self.acct("stock"), call_others=others, now=datetime(2026, 11, 21, 15, 0, tzinfo=timezone.utc), out=lines.append)
+        return rc, lines
+
+    def test_refuses_when_keys_resolve_to_the_options_account(self):
+        rc, lines = self.run_main(self.acct("opt"), {"options_account": self.acct("opt")})
+        self.assertEqual(rc, 1)
+        self.assertTrue(lines[-1].startswith("REFUSED (RESEARCH-LAB)"))
+
+    def test_refuses_wrong_size_or_inactive(self):
+        for new in (self.acct("lab", equity=25000.0), self.acct("lab", status="ACCOUNT_CLOSED"), self.acct("lab", bp=50000.0), self.acct("lab", level=2)):
+            rc, lines = self.run_main(new, {"options_account": self.acct("opt")})
+            self.assertEqual(rc, 1, lines)
+
+    def test_passes_the_check_and_prints_no_numbers(self):
+        rc, lines = self.run_main(self.acct("lab"), {"options_account": self.acct("opt")})
+        self.assertEqual(rc, 0, lines)
+        chk = B.account_check(self.acct("lab"), self.acct("stock"), {"options_account": self.acct("opt")}, 100000.0)
+        self.assertEqual({k: chk[k] for k in ("distinct_from_existing_account", "distinct_from_options_account", "size_about_expected", "buying_power_at_least_expected")},
+                         {"distinct_from_existing_account": True, "distinct_from_options_account": True, "size_about_expected": True, "buying_power_at_least_expected": True})
+        self.assertNotIn("100000", json.dumps(chk))

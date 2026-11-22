@@ -46,6 +46,9 @@ def signals(closes: list, iv: float | None = None) -> dict:
         out["rsi14"] = 100.0 if al == 0 else 100 - 100 / (1 + ag / al)
     if len(closes) >= 50:
         out["above_sma50"] = closes[-1] > sum(closes[-50:]) / 50
+    for n in (10, 20, 55):
+        if len(closes) >= n + 1:
+            out[f"breakout{n}"] = closes[-1] > max(closes[-n - 1:-1])   # close above the highest close of the prior n sessions
     if len(closes) >= 21:
         rets = [math.log(closes[i] / closes[i - 1]) for i in range(len(closes) - 20, len(closes))]
         m = sum(rets) / 20
@@ -59,6 +62,13 @@ def conditions_met(cond: dict, sig: dict):
     """(True/False, reason). Missing signal data fails closed."""
     for k, v in cond.items():
         name = k.rsplit("_", 1)[0]
+        if k == "breakout_days_min":
+            have = sig.get(f"breakout{v}")
+            if have is None:
+                return False, "NO_SIGNAL_DATA"
+            if not have:
+                return False, "COND_" + k
+            continue
         if k == "above_sma50":
             have = sig.get("above_sma50")
             if have is None or have != v:
