@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="300" viewBox="0 0 1200 300" role="img" aria-labelledby="t d">
+  <title id="t">agentic-feed</title>
+  <desc id="d">A paper-trading research system with frozen rules, public tools and a written record. Paper trading only. No real orders. Real trading stays off until the go-live gates pass.</desc>
+  <rect x="0" y="0" width="1200" height="300" rx="16" fill="#0F172A"/>
+  <rect x="64" y="64" width="6" height="172" rx="3" fill="#2563EB"/>
+  <g font-family="Inter, Helvetica, Arial, sans-serif">
+    <text x="96" y="122" fill="#F1F5F9" font-size="56" font-weight="700" letter-spacing="-1">agentic-feed</text>
+    <text x="96" y="170" fill="#F1F5F9" font-size="26">Frozen rules, public tools, and a written record of every paper trade.</text>
+    <rect x="96" y="196" width="820" height="40" rx="8" fill="none" stroke="#64748B" stroke-width="1.5"/>
+    <circle cx="120" cy="216" r="6" fill="#2563EB"/>
+    <text x="138" y="223" fill="#F1F5F9" font-size="19">Paper trading only. No real orders. Real trading stays off until the go-live gates pass.</text>
+  </g>
+</svg>

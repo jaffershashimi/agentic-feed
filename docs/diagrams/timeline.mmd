@@ -1,0 +1,7 @@
+%%{init: {"theme":"base","fontFamily":"Inter, Helvetica, Arial, sans-serif","themeVariables":{"fontFamily":"Inter, Helvetica, Arial, sans-serif","fontSize":"15px","primaryColor":"#F1F5F9","primaryTextColor":"#0F172A","primaryBorderColor":"#64748B","lineColor":"#64748B","edgeLabelBackground":"#F1F5F9","tertiaryColor":"#F1F5F9"},"htmlLabels":false,"flowchart":{"curve":"basis","nodeSpacing":34,"rankSpacing":44,"padding":14,"htmlLabels":false}}}%%
+flowchart TB
+  T1("Pre-open check<br/>5:31 PT · 8:31 ET"):::base --> T2("Open check<br/>6:37 PT · 9:37 ET"):::base --> T3("Stock engine<br/>7:02 PT · 10:02 ET"):::key --> T4("Options engine<br/>7:47 PT · 10:47 ET"):::key --> T5("Risk monitor, hourly<br/>8:47 to 11:47 PT"):::base --> T6("Pre-close check<br/>12:45 PT · 15:45 ET"):::base --> T7("After-close<br/>1:35 PT · 16:35 ET"):::base --> T8("Reconcile<br/>2:47 PT · 17:47 ET"):::base --> T9("Run audit<br/>3:23 PT · 18:23 ET"):::ink
+  classDef base fill:#F1F5F9,stroke:#64748B,stroke-width:1.5px,color:#0F172A;
+  classDef key fill:#2563EB,stroke:#2563EB,stroke-width:1.5px,color:#FFFFFF;
+  classDef warn fill:#F1F5F9,stroke:#B45309,stroke-width:2.5px,color:#0F172A;
+  classDef ink fill:#0F172A,stroke:#64748B,stroke-width:1.5px,color:#FFFFFF;
