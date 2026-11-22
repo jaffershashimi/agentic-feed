@@ -381,16 +381,17 @@ class ReportTests(unittest.TestCase):
     def trade(self, spec_id, pnl, tagged=False, small=60.0, loss=400.0):
         return {"entry": {"spec_id": spec_id, "max_loss_usd": loss, "catalyst_tagged": tagged, "smallest_version_risk_usd": small}, "exit": {"pnl_model_usd": pnl, "pnl_natural_usd": pnl - 5}}
 
-    def test_ranking_comes_from_history_and_paper_confirms(self):
+    def test_ranking_comes_from_history_only(self):
         st = {"specs": {"O-1": {}}, "closed": [self.trade("O-1", 50 if i % 2 else -20, tagged=i % 3 == 0) for i in range(40)], "closed_control": [self.trade("O-1", -10) for _ in range(40)],
               "open": {}, "open_control": {}, "halts": {}, "no_fill": 0}
-        self.assertEqual(R.build(st, {})["strategies"][0]["label"], P.UNRANKED_LABEL)                       # 40 paper trades alone never rank
-        self.assertEqual(R.build(st, {"O-1": {"holm_pass": True}})["strategies"][0]["label"], P.UNRANKED_LABEL)  # Holm without deflated Sharpe: still unranked
-        self.assertEqual(R.build(st, {"O-1": {"holm_pass": True, "dsr_pass": True}})["strategies"][0]["label"], "ranked: history passed, paper confirms")
-        few = dict(st, closed=st["closed"][:6], closed_control=st["closed_control"][:6])
-        self.assertEqual(R.build(few, {"O-1": {"holm_pass": True, "dsr_pass": True}})["strategies"][0]["label"], "ranked on history, paper confirmation pending")
+        self.assertEqual(R.build(st, {})["strategies"][0]["label"], P.UNRANKED_LABEL)                       # paper alone never ranks
+        self.assertEqual(R.build(st, {"O-1": {"holm_pass": True}})["strategies"][0]["label"], P.UNRANKED_LABEL)  # Holm without deflated Sharpe: unranked
+        ranked = "ranked on real-quote history (Holm and deflated Sharpe)"
+        self.assertEqual(R.build(st, {"O-1": {"holm_pass": True, "dsr_pass": True}})["strategies"][0]["label"], ranked)
+        few = dict(st, closed=st["closed"][:2], closed_control=[])
+        self.assertEqual(R.build(few, {"O-1": {"holm_pass": True, "dsr_pass": True}})["strategies"][0]["label"], ranked)   # no trade-count rule
         bad = dict(st, closed=[self.trade("O-1", -40) for _ in range(10)], closed_control=[self.trade("O-1", 10) for _ in range(10)])
-        self.assertTrue(R.build(bad, {"O-1": {"holm_pass": True, "dsr_pass": True}})["strategies"][0]["label"].startswith("not ranked: paper contradicts"))
+        self.assertEqual(R.build(bad, {"O-1": {"holm_pass": True, "dsr_pass": True}})["strategies"][0]["label"], ranked)    # paper never changes a rank
 
     def test_trades_needed(self):
         self.assertIsNone(R.trades_needed([0.1] * 3))
@@ -647,3 +648,11 @@ class ResearchLabCliTests(unittest.TestCase):
         self.assertEqual({k: chk[k] for k in ("distinct_from_existing_account", "distinct_from_options_account", "size_about_expected", "buying_power_at_least_expected")},
                          {"distinct_from_existing_account": True, "distinct_from_options_account": True, "size_about_expected": True, "buying_power_at_least_expected": True})
         self.assertNotIn("100000", json.dumps(chk))
+
+
+class FixedOrderIdTests(unittest.TestCase):
+    def test_entry_id_is_fixed_per_spec_underlying_day(self):
+        import inspect
+        src = inspect.getsource(E.Engine.open_one)
+        self.assertNotIn("token_hex", src)
+        self.assertIn("'c' if control else 'r'", src)

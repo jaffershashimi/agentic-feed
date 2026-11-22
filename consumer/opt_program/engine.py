@@ -6,7 +6,6 @@ from __future__ import annotations
 
 import math
 import random
-import secrets
 from datetime import date, datetime
 from zoneinfo import ZoneInfo
 
@@ -145,7 +144,9 @@ class Engine:
             if why:
                 self.skip(why)
                 return
-        sid = f"{spec['id']}-{root}-{self.day.strftime('%y%m%d')}-{secrets.token_hex(2)}"
+        # Fixed id (owner rule 2026-11-22): spec, underlying, day and real-or-control. It is also the broker's client_order_id, and the broker refuses a repeated
+        # client_order_id, so a retried or re-run workflow cannot send the same entry twice. One entry per spec, underlying and day is already the rule.
+        sid = f"{spec['id']}-{root}-{self.day.strftime('%y%m%d')}-{'c' if control else 'r'}"
         rec = {"id": sid, "spec_id": spec["id"], "spec_sha256": sha(spec), "underlying": root, "day": self.day.isoformat(), "kind": plan["kind"], "qty": 1,
                "legs": [leg_dict(lg) for lg in plan["legs"]], "entry_net_model": round(plan["net_model"], 4), "entry_net_natural": round(plan["net_natural"], 4),
                "entry_net_mid": round(plan["net_mid"], 4), "max_loss_usd": e["max_loss_usd"], "max_profit_usd": e["max_profit_usd"], "width": e["width"],

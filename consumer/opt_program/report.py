@@ -1,8 +1,7 @@
 """Ranking and transfer report. Ranking metric: net expectancy per dollar at risk after costs, with a bootstrap interval, plus max drawdown, worst trade and trade count.
 Win rate is shown and never ranks. Every strategy is shown with and without catalyst-tagged trades (none dropped) and against its random-entry control.
-Owner rule of 2026-11-22: paper checks implementation and costs; ranking comes from real-quote history with Holm correction and deflated Sharpe (the Stage 1 file);
-paper trades confirm. A strategy without a passing Stage 1 result is labelled 'unranked, not evidence' however many paper trades it has. 30 closed paper trades can
-kill a strategy under its kill criteria but never rank it."""
+Owner rule of 2026-11-22 (final): paper trading checks implementation and costs only. Ranking comes from real-quote history with Holm correction and deflated
+Sharpe (the Stage 1 file needs holm_pass and dsr_pass). No trade-count rule. Paper results are shown beside the history result and never change a rank."""
 from __future__ import annotations
 
 import random
@@ -86,15 +85,7 @@ def strategy_report(spec_id: str, state: dict, stage1: dict | None = None) -> di
     s1 = (stage1 or {}).get(spec_id, {})
     history_pass = bool(s1.get("holm_pass")) and bool(s1.get("dsr_pass"))
     beats = bool(d and d[0] > 0)
-    contradicts = bool(d and d[1] < 0)       # paper interval entirely below its control
-    if not history_pass:
-        label = P.UNRANKED_LABEL
-    elif contradicts:
-        label = "not ranked: paper contradicts the history result (below its random-entry control)"
-    elif len(real) >= P.MIN_TRADES_FOR_RANKING and beats:
-        label = "ranked: history passed, paper confirms"
-    else:
-        label = "ranked on history, paper confirmation pending"
+    label = "ranked on real-quote history (Holm and deflated Sharpe)" if history_pass else P.UNRANKED_LABEL
     return {"spec_id": spec_id, "label": label, "trades_needed_t2": trades_needed(rr), "all": block(real), "with_catalyst_tag": block(tagged), "without_catalyst_tag": block(clean), "control": block(ctrl),
             "difference_vs_control_per_dollar": None if not d else {"interval": d, "beats_control": beats}, "transfer": transfer(real), "trades_open_now": None}
 
