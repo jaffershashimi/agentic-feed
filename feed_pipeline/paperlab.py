@@ -6,7 +6,7 @@ Three data classes stay separate and labeled:
   under each execution-cost scenario.
 - SYNTHETIC scenarios: block-bootstrap equity paths drawn from those historical outcomes, capped at
   MAX_SCENARIOS (one million) trade draws in total. Resampled draws are not new observations.
-- PAPER fills: never in this repository. The private desk scores its own ledger with consumer/paper_ledger.py.
+- PAPER fills: never in this repository. The private desk scores its own ledger with its ledger checker (private code).
 
 Each cost scenario sets the quoted spread, extra slippage, per-contract fees, the price uncertainty of a 15-minute
 delayed option quote and the chance a scheduled check finds no usable quote (the exit check is skipped that day).
@@ -187,7 +187,7 @@ def run(rows: list, now: datetime) -> dict:
                        "missingData": missing_data(rows)},
         "synthetic": {"dataClass": "SYNTHETIC_BLOCK_BOOTSTRAP_OF_HOLDOUT", "maxScenarios": MAX_SCENARIOS, "tradeDraws": total,
                       "tradesPerPath": PATHS_TRADES, "pathsPerConfig": paths_each, "results": synth},
-        "paperFills": {"dataClass": "PAPER", "status": "private ledger only; scored by consumer/paper_ledger.py, never published here"},
+        "paperFills": {"dataClass": "PAPER", "status": "private ledger only; scored by the private desk's ledger checker, never published here"},
         "contractsAffordable": contracts_affordable(rows),
         "limitations": [
             "Historical outcomes use modeled option prices from the VIX close, not option quotes; exits are checked at daily closes.",

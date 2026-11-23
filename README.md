@@ -1,6 +1,6 @@
 <p align="center"><img src="docs/diagrams/banner.svg" alt="agentic-feed. Frozen rules, public tools, and a written record of every paper trade. Paper trading only. No real orders. Real trading stays off until the go-live gates pass." width="100%"></p>
 
-The public, reproducible half of Agentic Lab: a small research system that tests trading rules on paper accounts, under limits written down before any trade, with every result kept on record.
+The public window into Agentic Lab: a small research system that tests trading rules on paper accounts, under limits written down before any trade, with every result kept on record. This repository publishes the market-data feed and this overview. The engine, the strategies and their rules run from a private repository (since 2026-11-22).
 
 **Paper trading only. No real orders. Real trading stays off until the go-live gates pass.**
 
@@ -86,7 +86,7 @@ flowchart TB
 
 ## Risk guardrails
 
-Layers from the smallest unit up. These are the options program's frozen limits for the 25,000 USD paper account, as written in [`consumer/opt_program/policy.py`](consumer/opt_program/policy.py). A frozen limit changes only by the owner's written decision.
+Layers from the smallest unit up. These are the options program's frozen limits for the 25,000 USD paper account, as written in the private engine code. A frozen limit changes only by the owner's written decision.
 
 ```mermaid
 %%{init: {"theme":"base","fontFamily":"Inter, Helvetica, Arial, sans-serif","themeVariables":{"fontFamily":"Inter, Helvetica, Arial, sans-serif","fontSize":"15px","primaryColor":"#F1F5F9","primaryTextColor":"#0F172A","primaryBorderColor":"#64748B","lineColor":"#64748B","edgeLabelBackground":"#F1F5F9","tertiaryColor":"#F1F5F9"},"htmlLabels":false,"flowchart":{"curve":"basis","nodeSpacing":34,"rankSpacing":44,"padding":14,"htmlLabels":false}}}%%
@@ -154,10 +154,9 @@ Go-live gates met: 1 of 5 (drawdown only).
 | Path | What it holds |
 |---|---|
 | [`feed/`](feed/) | The public market-data feed (`desk-feed.json`, `health.json`) |
-| [`feed_pipeline/`](feed_pipeline/) | Feed builder, market calendar, option math |
-| [`engine/`](engine/) | Stock paper engine: health, gate, limits, desk pack |
-| [`consumer/`](consumer/) | Paper tools, replay, checkers; [`consumer/opt_program/`](consumer/opt_program/) is the options program |
-| [`scripts/`](scripts/) | Privacy check and research scripts |
+| [`feed_pipeline/`](feed_pipeline/) | Feed builder, market calendar, option math, risk simulation, paper lab |
+| [`scripts/`](scripts/) | Privacy check |
+| [`third_party/`](third_party/) | A vendored MIT skill pack, unedited, at a pinned commit |
 | [`tests/`](tests/) | Unit tests (standard library only) |
 | [`docs/`](docs/) | Method notes; [`docs/diagrams/`](docs/diagrams/) holds the diagrams on this page |
 | [`system/`](system/) | Operating state and rule texts |
@@ -176,10 +175,6 @@ python3 -m unittest discover -s tests -t .
 
 ```bash
 python3 scripts/privacy_check.py
-```
-
-```bash
-grep -nE "^(MAX_LOSS_USD|OPEN_RISK_CAP_USD|STRATEGY_HALT_USD|ACCOUNT_HALT_USD)" consumer/opt_program/policy.py
 ```
 
 ```bash
@@ -210,7 +205,7 @@ Raw URLs:
 - https://raw.githubusercontent.com/jaffershashimi/agentic-feed/main/feed/desk-feed.json
 - https://raw.githubusercontent.com/jaffershashimi/agentic-feed/main/feed/health.json
 
-Values carry their source and date. Missing data is `null` and listed in `data_health`, never guessed. How Agentic Lab runs today: [system/OPERATING_STATE.md](system/OPERATING_STATE.md). Rule texts: [system/rules/](system/rules/).
+Values carry their source and date. Missing data is `null` and listed in `data_health`, never guessed. How Agentic Lab runs today: [system/OPERATING_STATE.md](system/OPERATING_STATE.md). Rule texts are kept privately.
 
 </details>
 
@@ -220,20 +215,11 @@ Values carry their source and date. Missing data is `null` and listed in `data_h
 - `docs/FEED_SCHEMA.md`
 - `docs/DESK_CONSUMER.md` (how a consumer must read the feed)
 - `docs/DATA_SOURCES.md`
-- `docs/SIGNAL_SCORECARD.md`
-- `docs/SCORE_CHECK.md` (does a higher entry score lead to better trades?)
-- `docs/REPLAY_R2.md` (deterministic replay of frozen rules R2 over saved bars)
-- `docs/COMPARE_ARMS.md` (paired R2 vs R3 and tag comparison, Holm-adjusted)
-- `docs/RANK_AUDIT.md` (stock-only rank and influence audit of the R2 score; descriptive, TEST ONLY)
-- `docs/BAR_ARCHIVE.md` (testing-mode archive of SIP 5-minute bars with a hash per day; nothing reads from it yet)
-- `docs/ALPACA_PAPER.md` (guardrailed Alpaca paper order tool: paper host only, dry run by default, kill switch)
-- `docs/ROBUSTNESS_TOOLKIT.md` (Deflated Sharpe, overfitting probability, causal HMM regimes, tear sheets, data gate, cost model, overnight monitor)
-- `docs/OPEN_SOURCE_LANDSCAPE.md` (what open-source tools and papers we adopted and what we rejected)
-- `docs/NEWS_STRATEGIES.md` (news and hype strategies S-043 and S-044, live headline watcher, drop scanner, tier-2 paper sizing)
-- `docs/STRESS_TEST.md` (failure-injection scenarios, live preflight, forward projection of the paper strategies)
-- `docs/KNOWLEDGE_CORE.md` (index of the methods in use, the day-trader-skill pack decisions, and the sample test record)
-- `docs/CONNECTORS.md` (read-only Alpaca MCP server and other data connectors)
-- `docs/RECORDS_STORE.md` (append-only, hash-chained copy of the paper records; detects and undoes a stale overwrite)
-- `docs/REPLAY_R2.md`, section "Resolving open trades" (`--resolve`: closes replay trades that entered too late in a session to get an exit)
+- `docs/ADDING_A_SOURCE.md`
+- `docs/FRED_V2.md` (bounded FRED release context)
+- `docs/OPTION_MATH.md`, `docs/RISK_SIM.md`, `docs/PAPER_LAB.md`, `docs/RESEARCH_RUNNER.md` (the feed's model and simulation outputs)
+- `docs/DESK_PROPOSAL.md`, `docs/PAID_DATA_DECISION.md`
+
+The engine and strategy docs moved to the private repository with the code on 2026-11-22.
 
 </details>

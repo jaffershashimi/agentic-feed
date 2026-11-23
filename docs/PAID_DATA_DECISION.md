@@ -2,7 +2,7 @@
 
 Decided October 24, 2026. **Recommendation: buy nothing now. Revisit only when a validated signal's measured lift exceeds the yearly cost by a wide margin.**
 
-The rule (from the issue) is to buy only when the free pipeline shows a measurable gap and the backtested lift beats the cost at the actual account size. The desk trades a four-figure account. Any feed costing $300 a year needs about +30% a year of extra edge on $1,000 just to break even. No signal on `docs/SIGNAL_SCORECARD.md` has shown any out-of-sample edge yet, and the research runner's tested long-option rules are negative on the holdout.
+The rule (from the issue) is to buy only when the free pipeline shows a measurable gap and the backtested lift beats the cost at the actual account size. The desk trades a four-figure account. Any feed costing $300 a year needs about +30% a year of extra edge on $1,000 just to break even. No signal has shown any out-of-sample edge yet, and the research runner's tested long-option rules are negative on the holdout.
 
 | Candidate | What it adds | Rough cost | Gap it would fill | Measured lift | Decision |
 |---|---|---|---|---|---|

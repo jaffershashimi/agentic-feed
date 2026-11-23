@@ -20,7 +20,7 @@ This replaces a flat "24 hours old" rule, which would wrongly reject every Monda
 ## When the feed is used
 
 - Treat each number as context with its stated meaning. `null` means unavailable. Never substitute zero or a guess.
-- `regime` and `macro` are v0 heuristics. Do not use them as entry signals or to raise position size. Until `docs/SIGNAL_SCORECARD.md` promotes a signal with out-of-sample evidence, they are informational only.
+- `regime` and `macro` are v0 heuristics. Do not use them as entry signals or to raise position size. Until a signal is promoted with out-of-sample evidence, they are informational only.
 - Useful today:
   - `vol.vix_over_rv20`, as an index-level richness check next to single-name IV/RV;
   - `vol.exp_move_1d_pct` and `vol.exp_move_5d_pct`, for index reachability context;
@@ -33,7 +33,7 @@ A Google Drive file or a Notion page may mirror the feed later. Until a backup c
 
 ## Release context (FRED v2 supplement)
 
-`feed/release-context.json` is checked separately with `consumer/check_release_context.py` (standard library, read-only). It prints one JSON line with `USED` or `IGNORED` and every reason, and it never fails the caller: an outage or a bad file is an `IGNORED` reason.
+`feed/release-context.json` is checked separately by the private desk's release-context checker (standard library, read-only). It prints one JSON line with `USED` or `IGNORED` and every reason, and it never fails the caller: an outage or a bad file is an `IGNORED` reason.
 
 The snapshot is `USED` only if all of these hold:
 - `schema` is `release-context/1`, `releaseId` is 221, `status` is `AVAILABLE` and `complete` is `true`.
@@ -48,7 +48,7 @@ Weekly observations older than 14 days are flagged `STALE_OBSERVATION` but stay 
 
 ## Paper-desk ledger check
 
-`consumer/paper_ledger.py` checks a private paper-trading fills CSV. It uses the standard library only, reads its input without writing, uses no network and talks to no broker.
+The paper ledger checker (pinned past versions are listed in `system/OPERATING_STATE.md`) checks a private paper-trading fills CSV. It uses the standard library only, reads its input without writing, uses no network and talks to no broker.
 
 **Columns:** event_id, mode, arm, trade_id, kind, occurred_at, quote_time, symbol, instrument, side, qty, price, ref_price, multiplier, fees, policy_hash, decision_id.
 

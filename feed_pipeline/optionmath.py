@@ -7,7 +7,7 @@ structure ("sell at +target% or stop at -stop%, else exit at the time limit") un
 Model assumptions are explicit in every result: lognormal underlying, constant volatility and rates, European
 pricing used for repricing, exits at the bid (mid minus half the quoted spread), levels checked on the simulation
 grid only (a level crossed between steps fills at the next step's price, never at the level). A model probability is
-not a market probability and nothing here is a trading signal; see docs/SIGNAL_SCORECARD.md.
+not a market probability and nothing here is a trading signal; no signal has been promoted with out-of-sample evidence.
 
     python3 -m feed_pipeline.optionmath ev --spot 100 --strike 102 --days 21 --iv 0.35 --kind call \
         --target 0.30 --stop 0.15 --hold-days 10 --spread-pct 0.04 --threshold-pct 3
