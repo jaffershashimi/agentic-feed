@@ -1,5 +1,5 @@
 {
- "artifactHash": "5dddd0d21480d180f31a582560d859d24a7ea2aa0a5121c80b85dfcdc06749c8",
+ "artifactHash": "259e5734cc726dafeb1d1c5c36ac6f450e13d820ac7bd70adf339d1c301ff5e9",
  "attemptedModelCount": 5,
  "attemptedStrategyHashes": [
   "0896efd7c3a01a56da8d0af3896726c1b0395797c700e5d1ed84b5e8961ea7fd",
@@ -9,8 +9,8 @@
   "c571fcbf5fe4dcb7ee199091c1a78b8398ac2b5fd2dd4f70f4bbe1ffa4f27f22"
  ],
  "availableAt": "2026-11-20",
- "codeCommit": "ca28cdd9f0783d433e676f0bdd36611b26074bfd",
- "codeHash": "814bbcdfa7780eb7fa910721589fb209b1bd51b3b6a80ace952aab7707ae8196",
+ "codeCommit": "ce599d1a0491eb0ed073a414318f80bdb8622386",
+ "codeHash": "40906281f931b08601a696a8e1c18d6bb6c625066d2c6905712115de80cfb0d3",
  "costModel": {
   "fees_pct_of_debit": 0.01,
   "spread_pct_of_mid": 0.04
@@ -38,7 +38,7 @@
    "unresolved_end_of_history": 3
   }
  },
- "createdAt": "2026-11-21T18:08:37+00:00",
+ "createdAt": "2026-11-23T00:05:19+00:00",
  "dataClass": "HISTORICAL_UNDERLYING_MODELED_OPTIONS",
  "datasetHash": "9d27171623203f471d1d9120da401a0e7b2b397a6b1b69085fbcbfe0ffb084d9",
  "datasetLicenseRef": "Cboe public index history CSVs (SPX, VIX); terms pending P0-3 verification (docs/DATA_SOURCES.md)",
@@ -381,7 +381,7 @@
  },
  "policyHash": "64ee60e64b548a9bccc642c40eb8ee93885a9e697870a81ed510f536a16a9632",
  "rows": 9287,
- "runKey": "7713d6ab9d3777def39b4cee01785ceabcfeb425981e4d8ced7b6d26bc9ab7c9",
+ "runKey": "e5436f860f693fe9385432845c129d11e95f6277f3a4cf75e4b513f3c8fc3c1d",
  "scenarioCount": 988111,
  "schemaVersion": "research-run/1",
  "seed": 20261024,
