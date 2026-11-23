@@ -52,4 +52,4 @@ The rule would still let a strong single-name catalyst through when its own cali
 
 ## 5. Later (not proposed yet)
 
-Replace the win-probability priors with event-study evidence only after P3 promotes a signal on `docs/SIGNAL_SCORECARD.md`.
+Replace the win-probability priors with event-study evidence only after a signal is promoted with out-of-sample evidence.

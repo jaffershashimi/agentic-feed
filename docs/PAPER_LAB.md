@@ -8,7 +8,7 @@
 |---|---|---|
 | `historical` | `HISTORICAL_UNDERLYING_MODELED_OPTIONS` | One outcome per entry date on real S&P 500 and VIX closes, using the research runner's +30% / −15% structure, re-priced under each cost scenario. Option prices are Black-Scholes values from the VIX, not quotes. |
 | `synthetic` | `SYNTHETIC_BLOCK_BOOTSTRAP_OF_HOLDOUT` | Equity paths of 100 trades resampled in blocks from the holdout outcomes. The total number of trade draws is capped at one million (`MAX_SCENARIOS`). These draws are not new observations. |
-| `paperFills` | `PAPER` | Never in this repository. The private desk scores its own fills with `consumer/paper_ledger.py`. |
+| `paperFills` | `PAPER` | Never in this repository. The private desk scores its own fills with its ledger checker. |
 
 ## Cost scenarios
 

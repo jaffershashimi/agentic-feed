@@ -59,6 +59,8 @@ These are copies for reference; the running desk reads its own frozen copies, an
 
 ## Pinned tools (raw URLs at a fixed commit, sha256 verified before use)
 
+Since 2026-11-22 the engine and strategy code live in a private repository; this repository's main branch keeps only the market-data feed. The fixed commits below are unchanged and still serve these exact files by raw URL.
+
 | Tool | Commit | sha256 |
 |---|---|---|
 | consumer/paper_ledger.py | 59b1eeb | bbed2756813ece1b0eddd60ee44d2659c1eee2681c91e9b8eb52251de02e976d |
@@ -71,7 +73,7 @@ These are copies for reference; the running desk reads its own frozen copies, an
 | consumer/alpaca_paper.py (Alpaca PAPER order tool; paper host only, dry run unless --submit; not in any schedule prompt; first plumbing test Nov 16) | 49de2f5 | c6719218ccff8acfb0a14f47df330f958c08963b0d93826428e97f990dac5e1c |
 | consumer/replay_daily.py (REPLAY-DAILY, TEST ONLY, no schedule yet) | see note | pin set when the owner approves the first run |
 
-Docs: [REPLAY_R2](../docs/REPLAY_R2.md), [RECORDS_STORE](../docs/RECORDS_STORE.md), [RANK_AUDIT](../docs/RANK_AUDIT.md), [BAR_ARCHIVE](../docs/BAR_ARCHIVE.md), [COMPARE_ARMS](../docs/COMPARE_ARMS.md), [SCORE_CHECK](../docs/SCORE_CHECK.md), [DESK_CONSUMER](../docs/DESK_CONSUMER.md).
+Docs: [DESK_CONSUMER](../docs/DESK_CONSUMER.md). The tool docs are kept with the private code.
 
 ## Judging results
 

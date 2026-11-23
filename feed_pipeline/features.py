@@ -2,7 +2,7 @@
 
 Every function takes only observations up to the decision date, so callers
 must slice series with `as_of_slice` first. Heuristic scores are labeled v0
-and are NOT validated signals; see docs/SIGNAL_SCORECARD.md.
+and are NOT validated signals; no signal has been promoted with out-of-sample evidence.
 """
 from __future__ import annotations
 
