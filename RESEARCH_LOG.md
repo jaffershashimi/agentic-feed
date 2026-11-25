@@ -2,7 +2,7 @@
 
 Market and model data only. Option prices in the research runner are Black-Scholes values from the VIX close on S&P 500 history, not historical option quotes or any account's fills. Exits are checked at daily closes. Resampled outcomes are not new observations. Nothing here is a forecast, a measured live edge or advice, and no result changes a trading rule by itself.
 
-Records stored: 51; unique research runs: 24; paper-lab records: 50. Latest record session: 2026-11-24.
+Records stored: 52; unique research runs: 24; paper-lab records: 51. Latest record session: 2026-11-25.
 
 ## Latest research run (holdout split)
 
@@ -31,7 +31,7 @@ Tail stress (TAIL_STRESS_SYNTHETIC: IV x1.6, overnight gap -7.0%): call_every_se
 
 ## Volatility context
 
-VIX 26.36, 20-day realized 31.79, VIX/RV20 0.83, VRP -5.43 vol points, VIX percentile (252d) 95.2, term 3m/1m 0.966, v0 regime stress (unvalidated).
+VIX 26.36, 20-day realized 31.79, VIX/RV20 0.83, VRP -5.43 vol points, VIX percentile (252d) 95.2, term 3m/1m 0.997, v0 regime stress (unvalidated).
 
 ## Paper lab ($10,000 paper account, cost scenarios; modeled options)
 
@@ -75,4 +75,4 @@ VIX 26.36, 20-day realized 31.79, VIX/RV20 0.83, VRP -5.43 vol points, VIX perce
 | 2026-11-20 | -6.3% | 28.5% | -7.5% | 43.1% | 35.89 | 9.36 |
 | 2026-11-23 | -6.3% | 28.5% | -7.5% | 43.1% | 35.89 | 9.36 |
 | 2026-11-24 | -6.4% | 28.5% | -7.5% | 43.1% | 26.62 | -5.34 |
-| 2026-11-24 | -6.4% | 28.5% | -7.5% | 43.1% | 26.36 | -5.43 |
+| 2026-11-25 | -6.4% | 28.5% | -7.5% | 43.1% | 26.36 | -5.43 |
