@@ -2,19 +2,19 @@
 
 Market and model data only. Option prices in the research runner are Black-Scholes values from the VIX close on S&P 500 history, not historical option quotes or any account's fills. Exits are checked at daily closes. Resampled outcomes are not new observations. Nothing here is a forecast, a measured live edge or advice, and no result changes a trading rule by itself.
 
-Records stored: 52; unique research runs: 24; paper-lab records: 51. Latest record session: 2026-11-25.
+Records stored: 53; unique research runs: 25; paper-lab records: 52. Latest record session: 2026-11-25.
 
 ## Latest research run (holdout split)
 
-Run key 0bd28f0a4492, code 6ac61bc, data through 2026-11-24. 27061 unique observations, 988475 resampled scenarios.
+Run key 1d8dbbd9094b, code 186e16b, data through 2026-11-25. 27064 unique observations, 988657 resampled scenarios.
 
 | rule | n | win rate | mean net | 95% interval | payoff | p05 | max DD at 10% |
 |---|---|---|---|---|---|---|---|
-| call_above_sma200 | 1179 | 28.5% | -6.4% | -9.2% to -4.1% | 1.58 | -34.8% | 69.0% |
-| call_every_session | 1471 | 29.4% | -5.9% | -8.3% to -3.3% | 1.59 | -36.2% | 81.6% |
+| call_above_sma200 | 1180 | 28.5% | -6.4% | -9.1% to -3.7% | 1.58 | -34.8% | 69.0% |
+| call_every_session | 1472 | 29.3% | -5.9% | -8.1% to -3.3% | 1.59 | -36.2% | 81.6% |
 | cash | 0 | n/a | 0.0% | n/a | n/a | n/a | n/a |
-| put_every_session | 1471 | 27.0% | -7.5% | -9.6% to -5.3% | 1.77 | -46.0% | 98.8% |
-| put_vix_above_25 | 195 | 25.1% | -13.6% | -18.7% to -7.2% | 1.43 | -52.2% | 76.6% |
+| put_every_session | 1472 | 27.0% | -7.5% | -9.8% to -5.0% | 1.77 | -46.0% | 98.8% |
+| put_vix_above_25 | 195 | 25.1% | -13.6% | -18.9% to -6.9% | 1.43 | -52.2% | 76.6% |
 
 Tail stress (TAIL_STRESS_SYNTHETIC: IV x1.6, overnight gap -7.0%): call_every_session mean -60.8%, p05 -81.4%; put_every_session mean 259.9%, p05 142.8%.
 
@@ -31,22 +31,22 @@ Tail stress (TAIL_STRESS_SYNTHETIC: IV x1.6, overnight gap -7.0%): call_every_se
 
 ## Volatility context
 
-VIX 26.36, 20-day realized 31.79, VIX/RV20 0.83, VRP -5.43 vol points, VIX percentile (252d) 95.2, term 3m/1m 0.997, v0 regime stress (unvalidated).
+VIX 28.29, 20-day realized 31.71, VIX/RV20 0.89, VRP -3.42 vol points, VIX percentile (252d) 98.0, term 3m/1m 0.929, v0 regime stress (unvalidated).
 
 ## Paper lab ($10,000 paper account, cost scenarios; modeled options)
 
-1000000 synthetic trade draws (bounded at one million). Whole ATM SPY contracts affordable: 0 at 10% size, 0 at 15% size (premium about $2185.54).
+1000000 synthetic trade draws (bounded at one million). Whole ATM SPY contracts affordable: 0 at 10% size, 0 at 15% size (premium about $2339.51).
 
 | rule / scenario | holdout n | win rate | mean net | 95% interval |
 |---|---|---|---|---|
-| call_above_sma200/liquid | 1179 | 32.3% | -2.9% | -5.9% to 0.5% |
-| call_above_sma200/stressed | 1179 | 20.4% | -11.1% | -13.4% to -8.1% |
-| call_above_sma200/typical | 1179 | 31.5% | -3.8% | -7.0% to -0.3% |
-| call_above_sma200/wide | 1179 | 27.7% | -6.6% | -9.7% to -2.7% |
-| call_every_session/liquid | 1471 | 33.3% | -2.2% | -4.7% to 0.9% |
-| call_every_session/stressed | 1471 | 21.4% | -11.0% | -13.0% to -8.8% |
-| call_every_session/typical | 1471 | 31.9% | -3.2% | -6.0% to 0.1% |
-| call_every_session/wide | 1471 | 27.9% | -6.3% | -8.7% to -3.2% |
+| call_above_sma200/liquid | 1180 | 32.3% | -2.9% | -5.9% to 1.2% |
+| call_above_sma200/stressed | 1180 | 20.3% | -11.1% | -13.6% to -8.1% |
+| call_above_sma200/typical | 1180 | 31.4% | -3.9% | -6.9% to -0.7% |
+| call_above_sma200/wide | 1180 | 27.6% | -6.6% | -9.8% to -3.0% |
+| call_every_session/liquid | 1472 | 33.3% | -2.2% | -4.8% to 0.8% |
+| call_every_session/stressed | 1472 | 21.4% | -11.0% | -13.2% to -8.5% |
+| call_every_session/typical | 1472 | 31.9% | -3.2% | -5.6% to -0.0% |
+| call_every_session/wide | 1472 | 27.9% | -6.3% | -8.6% to -3.2% |
 
 ## Trend (one row per unique research run, newest last)
 
@@ -76,3 +76,4 @@ VIX 26.36, 20-day realized 31.79, VIX/RV20 0.83, VRP -5.43 vol points, VIX perce
 | 2026-11-23 | -6.3% | 28.5% | -7.5% | 43.1% | 35.89 | 9.36 |
 | 2026-11-24 | -6.4% | 28.5% | -7.5% | 43.1% | 26.62 | -5.34 |
 | 2026-11-25 | -6.4% | 28.5% | -7.5% | 43.1% | 26.36 | -5.43 |
+| 2026-11-25 | -6.4% | 28.5% | -7.5% | 43.1% | 28.29 | -3.42 |
